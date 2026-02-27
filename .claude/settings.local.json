@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(yabai -m query --windows | jq '[.[] | .app]' 2>&1)",
+      "Bash(yabai -m query --windows | jq '[.[] | select\\(.app == \"ghostty\"\\) | {id, app, \"is-floating\", \"is-visible\"}]' 2>&1)",
+      "Bash(yabai -m query --windows | jq '[.[] | select\\(.app == \"ghostty\"\\) | {id, app, space, display, \"is-floating\", \"is-visible\", \"is-hidden\", \"is-minimized\"}]' 2>&1)",
+      "Bash(yabai -m query --spaces | jq '[.[] | {index, \"is-visible\", display}]' 2>&1)",
+      "Bash(yabai-restart 2>&1)",
+      "Bash(bash -c 'eval \"$\\(grep -A1 \"^floating_apps=\" ~/.yabairc | head -2\\)\"; echo \"count=${#floating_apps[@]}\"; echo \"items=${floating_apps[*]}\"')",
+      "Bash(yabai -m rule --add app=\"^Stickies$\" float=on 2>&1)",
+      "Bash(yabai -m rule --add 2>&1 | head -20)",
+      "Bash(man yabai 2>/dev/null | col -b | grep -A 30 \"rule --add\" || yabai --help 2>&1)",
+      "Bash(yabai -m rule --add app=\"^Stickies$\" manage=off 2>&1)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:ghostty.org)",
+      "Bash(yabai -m rule --list 2>/dev/null | python3 -m json.tool 2>/dev/null || yabai -m rule --list 2>/dev/null)",
+      "Bash(yabai -m query --windows | python3 -c \"\nimport json, sys\nwindows = json.load\\(sys.stdin\\)\nfor w in windows:\n    if 'Calendar' in w.get\\('app', ''\\):\n        print\\(json.dumps\\({k: w[k] for k in ['id','app','title','is-sticky','is-floating','is-visible','space']}, indent=2\\)\\)\n\" 2>/dev/null)"
+    ]
+  }
+}

@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 import StickySpacesShared
 
@@ -110,6 +111,32 @@ public actor StickyManager {
         await store.list(space: space)
     }
 
+    public func setWorkspacePosition(_ workspaceID: WorkspaceID, position: CGPoint) async {
+        await store.setWorkspacePosition(workspaceID, position: position)
+    }
+
+    public func canvasLayout() async throws -> CanvasLayout {
+        let topology = try await yabai.topologySnapshot()
+        return await resolvedCanvasLayout(for: topology)
+    }
+
+    public func zoomOutSnapshot(
+        viewport: CanvasViewportState = .defaultOverview
+    ) async throws -> CanvasSnapshot {
+        let topology = try await yabai.topologySnapshot()
+        let layout = await resolvedCanvasLayout(for: topology)
+        let stickies = await store.list(space: nil)
+        let activeWorkspaceID = try? await yabai.currentSpaceID()
+
+        return CanvasLayoutEngine.makeSnapshot(
+            layout: layout,
+            workspaces: topology.spaces,
+            stickies: stickies,
+            activeWorkspaceID: activeWorkspaceID,
+            viewport: viewport
+        )
+    }
+
     public func status() async -> StatusSnapshot {
         let stickyCount = await store.count()
         let runtime = await runtimeProjection()
@@ -147,6 +174,16 @@ public actor StickyManager {
             await store.deleteAll(in: workspaceID)
         }
         return result
+    }
+
+    private func resolvedCanvasLayout(for topology: WorkspaceTopologySnapshot) async -> CanvasLayout {
+        let existingLayout = await store.canvasLayout()
+        let resolved = CanvasLayoutEngine.resolveLayout(
+            storedLayout: existingLayout,
+            workspaces: topology.spaces
+        )
+        await store.setCanvasLayout(resolved)
+        return resolved
     }
 
     private func runtimeProjection() async -> (

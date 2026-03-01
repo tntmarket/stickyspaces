@@ -8,8 +8,10 @@ public enum IPCRequest: Codable, Sendable, Equatable {
     case dismissAll
     case move(id: UUID, x: Double, y: Double)
     case resize(id: UUID, width: Double, height: Double)
+    case zoomOut
     case list(space: WorkspaceID?)
     case get(id: UUID)
+    case canvasLayout
     case status
     case verifySync
 }
@@ -29,6 +31,8 @@ public enum IPCResponse: Codable, Sendable, Equatable {
     case ok
     case sticky(StickyNote)
     case stickyList([StickyNote])
+    case canvasLayout(CanvasLayout)
+    case canvasSnapshot(CanvasSnapshot)
     case status(StatusSnapshot)
     case syncResult(synced: Bool, mismatches: [String])
     case workspaceTransitioning(WorkspaceTransitioningResponse)

@@ -86,6 +86,13 @@ public actor IPCServer {
             } catch {
                 return .error("sticky not found")
             }
+        case .zoomOut:
+            do {
+                let snapshot = try await manager.zoomOutSnapshot()
+                return .canvasSnapshot(snapshot)
+            } catch {
+                return .error("cannot zoom-out")
+            }
         case .list(let space):
             let notes = await manager.list(space: space)
             return .stickyList(notes)
@@ -95,6 +102,13 @@ public actor IPCServer {
                 return .sticky(note)
             } catch {
                 return .error("sticky not found")
+            }
+        case .canvasLayout:
+            do {
+                let layout = try await manager.canvasLayout()
+                return .canvasLayout(layout)
+            } catch {
+                return .error("cannot read canvas-layout")
             }
         case .status:
             let snapshot = await manager.status()

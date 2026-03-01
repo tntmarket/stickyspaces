@@ -120,4 +120,34 @@ struct CLITests {
         )
         #expect(listAfterDismissAll == "no stickies")
     }
+
+    @Test("zoom-out returns deterministic canvas snapshot metadata")
+    func zoomOutReturnsDeterministicSnapshotMetadata() async throws {
+        let app = DemoAppFactory.makeReady()
+        _ = try await app.client.new(text: "One")
+
+        let first = try await StickySpacesCLICommandRunner.run(
+            args: ["zoom-out"],
+            app: app
+        )
+        let second = try await StickySpacesCLICommandRunner.run(
+            args: ["zoom-out"],
+            app: app
+        )
+
+        #expect(first.contains("active-workspace"))
+        #expect(first == second)
+    }
+
+    @Test("canvas-layout prints persisted workspace positions")
+    func canvasLayoutPrintsPersistedWorkspacePositions() async throws {
+        let app = DemoAppFactory.makeReady()
+        let output = try await StickySpacesCLICommandRunner.run(
+            args: ["canvas-layout"],
+            app: app
+        )
+
+        #expect(output.contains("workspace"))
+        #expect(output.contains("display"))
+    }
 }

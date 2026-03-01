@@ -4,6 +4,7 @@ import StickySpacesShared
 
 public actor StickyStore {
     private var notes: [UUID: StickyNote] = [:]
+    private var storedCanvasLayout = CanvasLayout()
 
     public init() {}
 
@@ -60,5 +61,17 @@ public actor StickyStore {
 
     public func deleteAll(in workspaceID: WorkspaceID) {
         notes = notes.filter { $0.value.workspaceID != workspaceID }
+    }
+
+    public func canvasLayout() -> CanvasLayout {
+        storedCanvasLayout
+    }
+
+    public func setCanvasLayout(_ layout: CanvasLayout) {
+        storedCanvasLayout = layout
+    }
+
+    public func setWorkspacePosition(_ workspaceID: WorkspaceID, position: CGPoint) {
+        storedCanvasLayout.workspacePositions[workspaceID] = position
     }
 }

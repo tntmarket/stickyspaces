@@ -90,6 +90,18 @@ public enum StickySpacesCLICommandRunner {
             }
             try await app.client.resize(id: id, width: width, height: height)
             return "resized id: \(id)"
+        case "zoom-out":
+            let snapshot = try await app.client.zoomOut()
+            let regionSummary = snapshot.regions
+                .map { region in
+                    let activeFlag = region.isActive ? "*" : "-"
+                    let origin = "(\(region.frame.origin.x),\(region.frame.origin.y))"
+                    return "\(activeFlag) workspace \(region.workspaceID.rawValue) display \(region.displayID) origin \(origin) stickies \(region.stickyCount)"
+                }
+                .joined(separator: "\n")
+            let active = snapshot.activeWorkspaceID?.rawValue.description ?? "none"
+            let invariants = snapshot.invariants.joined(separator: ";")
+            return "active-workspace: \(active) zoom: \(snapshot.viewport.zoomScale) pan: (\(snapshot.viewport.panOffset.x),\(snapshot.viewport.panOffset.y)) invariants: [\(invariants)]\n\(regionSummary)"
         case "list":
             let notes = try await app.client.list(space: nil)
             if notes.isEmpty {
@@ -104,6 +116,16 @@ public enum StickySpacesCLICommandRunner {
             }
             let note = try await app.client.get(id: id)
             return "id: \(note.id) workspace: \(note.workspaceID.rawValue) text: \(note.text) position: (\(note.position.x), \(note.position.y)) size: (\(note.size.width), \(note.size.height))"
+        case "canvas-layout":
+            let layout = try await app.client.canvasLayout()
+            let lines = layout.workspacePositions.keys
+                .sorted { $0.rawValue < $1.rawValue }
+                .map { workspaceID in
+                    let point = layout.workspacePositions[workspaceID] ?? .zero
+                    let displayID = layout.workspaceDisplayIDs[workspaceID] ?? -1
+                    return "workspace \(workspaceID.rawValue) display \(displayID) position (\(point.x),\(point.y))"
+                }
+            return lines.isEmpty ? "no workspaces" : lines.joined(separator: "\n")
         case "status":
             let status = try await app.client.status()
             return "running: \(status.running) mode: \(status.mode.rawValue) space: \(status.space?.rawValue.description ?? "none") count: \(status.stickyCount) warnings: \(status.warnings.joined(separator: ",")) panel: \(status.panelVisibilityStrategy.rawValue)"
@@ -138,8 +160,10 @@ public enum StickySpacesCLICommandRunner {
           dismiss-all
           move <id> --x X --y Y
           resize <id> --width W --height H
+          zoom-out
           list
           get <id>
+          canvas-layout
           status
           verify-sync
         """

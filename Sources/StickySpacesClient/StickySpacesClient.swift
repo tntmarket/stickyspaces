@@ -79,6 +79,14 @@ public struct StickySpacesClient: Sendable {
         return try throwResponseError(response)
     }
 
+    public func zoomOut() async throws -> CanvasSnapshot {
+        let response = try await send(.zoomOut)
+        if case .canvasSnapshot(let snapshot) = response {
+            return snapshot
+        }
+        return try throwResponseError(response)
+    }
+
     public func list(space: WorkspaceID?) async throws -> [StickyNote] {
         let response = try await send(.list(space: space))
         if case .stickyList(let notes) = response {
@@ -91,6 +99,14 @@ public struct StickySpacesClient: Sendable {
         let response = try await send(.get(id: id))
         if case .sticky(let note) = response {
             return note
+        }
+        return try throwResponseError(response)
+    }
+
+    public func canvasLayout() async throws -> CanvasLayout {
+        let response = try await send(.canvasLayout)
+        if case .canvasLayout(let layout) = response {
+            return layout
         }
         return try throwResponseError(response)
     }

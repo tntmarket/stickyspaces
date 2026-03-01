@@ -55,4 +55,48 @@ struct StickyStoreWorkspaceTests {
         #expect(notes.count == 1)
         #expect(notes[0].text == "After")
     }
+
+    @Test("test_updateStickyPosition")
+    func test_updateStickyPosition() async throws {
+        let workspace = WorkspaceID(rawValue: 7)
+        let manager = StickyManager(
+            store: StickyStore(),
+            yabai: FakeYabaiQuerying(currentSpace: workspace),
+            panelSync: InMemoryPanelSync()
+        )
+        let created = try await manager.createSticky(text: "Movable")
+
+        try await manager.updateStickyPosition(
+            id: created.sticky.id,
+            x: 123.5,
+            y: 456.25
+        )
+        let notes = await manager.list(space: workspace)
+
+        #expect(notes.count == 1)
+        #expect(notes[0].position.x == 123.5)
+        #expect(notes[0].position.y == 456.25)
+    }
+
+    @Test("test_updateStickySize")
+    func test_updateStickySize() async throws {
+        let workspace = WorkspaceID(rawValue: 7)
+        let manager = StickyManager(
+            store: StickyStore(),
+            yabai: FakeYabaiQuerying(currentSpace: workspace),
+            panelSync: InMemoryPanelSync()
+        )
+        let created = try await manager.createSticky(text: "Resizable")
+
+        try await manager.updateStickySize(
+            id: created.sticky.id,
+            width: 333.75,
+            height: 222.5
+        )
+        let notes = await manager.list(space: workspace)
+
+        #expect(notes.count == 1)
+        #expect(notes[0].size.width == 333.75)
+        #expect(notes[0].size.height == 222.5)
+    }
 }

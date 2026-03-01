@@ -72,6 +72,27 @@ public actor StickyManager {
         }
     }
 
+    public func updateStickyPosition(id: UUID, x: Double, y: Double) async throws {
+        let updated = await store.updatePosition(stickyID: id, x: x, y: y)
+        guard updated != nil else {
+            throw StickyManagerError.stickyNotFound(id)
+        }
+    }
+
+    public func updateStickySize(id: UUID, width: Double, height: Double) async throws {
+        let updated = await store.updateSize(stickyID: id, width: width, height: height)
+        guard updated != nil else {
+            throw StickyManagerError.stickyNotFound(id)
+        }
+    }
+
+    public func getSticky(id: UUID) async throws -> StickyNote {
+        guard let note = await store.sticky(id: id) else {
+            throw StickyManagerError.stickyNotFound(id)
+        }
+        return note
+    }
+
     public func list(space: WorkspaceID?) async -> [StickyNote] {
         await store.list(space: space)
     }

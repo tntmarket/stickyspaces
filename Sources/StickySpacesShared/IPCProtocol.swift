@@ -4,7 +4,10 @@ public enum IPCRequest: Codable, Sendable, Equatable {
     case hello(protocolVersion: Int)
     case new(text: String?)
     case edit(id: UUID, text: String)
+    case move(id: UUID, x: Double, y: Double)
+    case resize(id: UUID, width: Double, height: Double)
     case list(space: WorkspaceID?)
+    case get(id: UUID)
     case status
     case verifySync
 }
@@ -22,6 +25,7 @@ public enum IPCResponse: Codable, Sendable, Equatable {
     )
     case created(id: UUID, workspaceID: WorkspaceID)
     case ok
+    case sticky(StickyNote)
     case stickyList([StickyNote])
     case status(StatusSnapshot)
     case syncResult(synced: Bool, mismatches: [String])

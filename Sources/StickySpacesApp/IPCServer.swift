@@ -58,9 +58,30 @@ public actor IPCServer {
             } catch {
                 return .error("sticky not found")
             }
+        case .move(let id, let x, let y):
+            do {
+                try await manager.updateStickyPosition(id: id, x: x, y: y)
+                return .ok
+            } catch {
+                return .error("sticky not found")
+            }
+        case .resize(let id, let width, let height):
+            do {
+                try await manager.updateStickySize(id: id, width: width, height: height)
+                return .ok
+            } catch {
+                return .error("sticky not found")
+            }
         case .list(let space):
             let notes = await manager.list(space: space)
             return .stickyList(notes)
+        case .get(let id):
+            do {
+                let note = try await manager.getSticky(id: id)
+                return .sticky(note)
+            } catch {
+                return .error("sticky not found")
+            }
         case .status:
             let snapshot = await manager.status()
             return .status(snapshot)

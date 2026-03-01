@@ -57,6 +57,30 @@ public enum StickySpacesCLICommandRunner {
             let text = parseOption("--text", in: args) ?? ""
             try await app.client.edit(id: id, text: text)
             return "edited id: \(id)"
+        case "move":
+            guard args.count >= 2, let id = UUID(uuidString: args[1]) else {
+                return "usage: stickyspaces move <id> --x X --y Y"
+            }
+            guard
+                let x = parseDoubleOption("--x", in: args),
+                let y = parseDoubleOption("--y", in: args)
+            else {
+                return "usage: stickyspaces move <id> --x X --y Y"
+            }
+            try await app.client.move(id: id, x: x, y: y)
+            return "moved id: \(id)"
+        case "resize":
+            guard args.count >= 2, let id = UUID(uuidString: args[1]) else {
+                return "usage: stickyspaces resize <id> --width W --height H"
+            }
+            guard
+                let width = parseDoubleOption("--width", in: args),
+                let height = parseDoubleOption("--height", in: args)
+            else {
+                return "usage: stickyspaces resize <id> --width W --height H"
+            }
+            try await app.client.resize(id: id, width: width, height: height)
+            return "resized id: \(id)"
         case "list":
             let notes = try await app.client.list(space: nil)
             if notes.isEmpty {
@@ -65,6 +89,12 @@ public enum StickySpacesCLICommandRunner {
             return notes
                 .map { "\($0.id.uuidString) [space \($0.workspaceID.rawValue)] \($0.text)" }
                 .joined(separator: "\n")
+        case "get":
+            guard args.count >= 2, let id = UUID(uuidString: args[1]) else {
+                return "usage: stickyspaces get <id>"
+            }
+            let note = try await app.client.get(id: id)
+            return "id: \(note.id) workspace: \(note.workspaceID.rawValue) text: \(note.text) position: (\(note.position.x), \(note.position.y)) size: (\(note.size.width), \(note.size.height))"
         case "status":
             let status = try await app.client.status()
             return "running: \(status.running) mode: \(status.mode.rawValue) space: \(status.space?.rawValue.description ?? "none") count: \(status.stickyCount) warnings: \(status.warnings.joined(separator: ",")) panel: \(status.panelVisibilityStrategy.rawValue)"
@@ -83,12 +113,22 @@ public enum StickySpacesCLICommandRunner {
         return args[index + 1]
     }
 
+    private static func parseDoubleOption(_ key: String, in args: [String]) -> Double? {
+        guard let raw = parseOption(key, in: args) else {
+            return nil
+        }
+        return Double(raw)
+    }
+
     private static func usage() -> String {
         """
         stickyspaces commands:
           new [--text TEXT]
           edit <id> --text TEXT
+          move <id> --x X --y Y
+          resize <id> --width W --height H
           list
+          get <id>
           status
           verify-sync
         """

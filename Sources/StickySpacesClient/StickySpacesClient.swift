@@ -47,10 +47,34 @@ public struct StickySpacesClient: Sendable {
         return try throwResponseError(response)
     }
 
+    public func move(id: UUID, x: Double, y: Double) async throws {
+        let response = try await send(.move(id: id, x: x, y: y))
+        if case .ok = response {
+            return
+        }
+        return try throwResponseError(response)
+    }
+
+    public func resize(id: UUID, width: Double, height: Double) async throws {
+        let response = try await send(.resize(id: id, width: width, height: height))
+        if case .ok = response {
+            return
+        }
+        return try throwResponseError(response)
+    }
+
     public func list(space: WorkspaceID?) async throws -> [StickyNote] {
         let response = try await send(.list(space: space))
         if case .stickyList(let notes) = response {
             return notes
+        }
+        return try throwResponseError(response)
+    }
+
+    public func get(id: UUID) async throws -> StickyNote {
+        let response = try await send(.get(id: id))
+        if case .sticky(let note) = response {
+            return note
         }
         return try throwResponseError(response)
     }

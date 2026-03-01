@@ -50,4 +50,40 @@ struct CLITests {
         )
         #expect(listOutput.contains("After"))
     }
+
+    @Test("test_moveSticky_updatesPosition")
+    func test_moveSticky_updatesPosition() async throws {
+        let app = DemoAppFactory.makeReady()
+        let created = try await app.client.new(text: "Move me")
+
+        let moveOutput = try await StickySpacesCLICommandRunner.run(
+            args: ["move", created.id.uuidString, "--x", "101.25", "--y", "202.5"],
+            app: app
+        )
+        #expect(moveOutput.contains("moved"))
+
+        let getOutput = try await StickySpacesCLICommandRunner.run(
+            args: ["get", created.id.uuidString],
+            app: app
+        )
+        #expect(getOutput.contains("position: (101.25, 202.5)"))
+    }
+
+    @Test("resize and get round-trip deterministic values")
+    func resizeAndGetRoundTripDeterministicValues() async throws {
+        let app = DemoAppFactory.makeReady()
+        let created = try await app.client.new(text: "Resize me")
+
+        let resizeOutput = try await StickySpacesCLICommandRunner.run(
+            args: ["resize", created.id.uuidString, "--width", "333.75", "--height", "222.5"],
+            app: app
+        )
+        #expect(resizeOutput.contains("resized"))
+
+        let getOutput = try await StickySpacesCLICommandRunner.run(
+            args: ["get", created.id.uuidString],
+            app: app
+        )
+        #expect(getOutput.contains("size: (333.75, 222.5)"))
+    }
 }

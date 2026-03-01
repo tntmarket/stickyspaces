@@ -1,4 +1,5 @@
 import Foundation
+import CoreGraphics
 import StickySpacesShared
 
 public actor StickyStore {
@@ -25,6 +26,28 @@ public actor StickyStore {
         note.text = text
         notes[stickyID] = note
         return note
+    }
+
+    public func updatePosition(stickyID: UUID, x: Double, y: Double) -> StickyNote? {
+        guard var note = notes[stickyID] else {
+            return nil
+        }
+        note.position = CGPoint(x: x, y: y)
+        notes[stickyID] = note
+        return note
+    }
+
+    public func updateSize(stickyID: UUID, width: Double, height: Double) -> StickyNote? {
+        guard var note = notes[stickyID] else {
+            return nil
+        }
+        note.size = CGSize(width: width, height: height)
+        notes[stickyID] = note
+        return note
+    }
+
+    public func sticky(id: UUID) -> StickyNote? {
+        notes[id]
     }
 
     public func count() -> Int {

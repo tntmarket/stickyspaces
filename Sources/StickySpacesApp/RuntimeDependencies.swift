@@ -34,6 +34,8 @@ public actor FakeYabaiQuerying: YabaiQuerying {
     private var snapshot: WorkspaceTopologySnapshot
     private var capabilityState: CapabilityState
     private var focusedSpaceHistory: [WorkspaceID] = []
+    private var pendingFocusRecovery: (workspaceID: WorkspaceID, remainingPolls: Int)?
+    private var nextFocusNotificationLossPolls: Int?
 
     public init(currentSpace: WorkspaceID?) {
         if let currentSpace {
@@ -54,6 +56,22 @@ public actor FakeYabaiQuerying: YabaiQuerying {
         if capabilityState.canReadCurrentSpace == false {
             throw YabaiUnavailableError.unavailable
         }
+        if var pendingFocusRecovery {
+            if pendingFocusRecovery.remainingPolls == 0 {
+                let displayID = snapshot.spaces.first(where: { $0.workspaceID == pendingFocusRecovery.workspaceID })?.displayID ?? 1
+                let recovered = WorkspaceBinding.stable(
+                    workspaceID: pendingFocusRecovery.workspaceID,
+                    displayID: displayID,
+                    isPrimaryDisplay: true
+                )
+                binding = recovered
+                self.pendingFocusRecovery = nil
+                return recovered
+            }
+            pendingFocusRecovery.remainingPolls -= 1
+            self.pendingFocusRecovery = pendingFocusRecovery
+            return .transitioning(retryAfterMilliseconds: 50)
+        }
         return binding
     }
 
@@ -73,6 +91,11 @@ public actor FakeYabaiQuerying: YabaiQuerying {
             throw YabaiUnavailableError.unavailable
         }
         focusedSpaceHistory.append(workspaceID)
+        if let polls = nextFocusNotificationLossPolls {
+            nextFocusNotificationLossPolls = nil
+            pendingFocusRecovery = (workspaceID: workspaceID, remainingPolls: max(0, polls))
+            return
+        }
         let displayID = snapshot.spaces.first(where: { $0.workspaceID == workspaceID })?.displayID ?? 1
         binding = .stable(workspaceID: workspaceID, displayID: displayID, isPrimaryDisplay: true)
     }
@@ -87,6 +110,10 @@ public actor FakeYabaiQuerying: YabaiQuerying {
 
     public func setCapabilities(_ capabilities: CapabilityState) {
         capabilityState = capabilities
+    }
+
+    public func setFocusNotificationLoss(pollsBeforeRecovery: Int) {
+        nextFocusNotificationLossPolls = max(0, pollsBeforeRecovery)
     }
 
     public func focusedSpaces() -> [WorkspaceID] {

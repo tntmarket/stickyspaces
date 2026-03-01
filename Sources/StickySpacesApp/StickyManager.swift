@@ -23,17 +23,20 @@ public actor StickyManager {
     private let yabai: any YabaiQuerying
     private let panelSync: any PanelSyncing
     private let topologyReconciler: WorkspaceTopologyReconciler
+    private let transitionProfile: ZoomTransitionProfile
 
     public init(
         store: StickyStore,
         yabai: any YabaiQuerying,
         panelSync: any PanelSyncing,
-        topologyReconciler: WorkspaceTopologyReconciler = WorkspaceTopologyReconciler()
+        topologyReconciler: WorkspaceTopologyReconciler = WorkspaceTopologyReconciler(),
+        transitionProfile: ZoomTransitionProfile = .phase0Selected
     ) {
         self.store = store
         self.yabai = yabai
         self.panelSync = panelSync
         self.topologyReconciler = topologyReconciler
+        self.transitionProfile = transitionProfile
     }
 
     public func createSticky(text: String) async throws -> StickyCreateResult {
@@ -138,6 +141,48 @@ public actor StickyManager {
     }
 
     public func zoomIn(workspaceID: WorkspaceID) async throws {
+        _ = try await performZoomIn(workspaceID: workspaceID, forcedMode: nil)
+    }
+
+    public func simulateZoomTransitionRoundTrip(
+        targetWorkspaceID: WorkspaceID,
+        forcedMode: ZoomTransitionMode? = nil
+    ) async throws -> ZoomTransitionMetrics {
+        _ = try await zoomOutSnapshot()
+        return try await performZoomIn(workspaceID: targetWorkspaceID, forcedMode: forcedMode)
+    }
+
+    public func verifyForcedModeParity(targetWorkspaceID: WorkspaceID) async throws -> ZoomTransitionParityResult {
+        guard transitionProfile.dualModeEnabled else {
+            let metrics = try await simulateZoomTransitionRoundTrip(targetWorkspaceID: targetWorkspaceID)
+            return ZoomTransitionParityResult(
+                passed: metrics.durationMilliseconds >= 300 && metrics.durationMilliseconds <= 500,
+                metricsByMode: [metrics.mode: metrics]
+            )
+        }
+
+        let originSpace = try? await yabai.currentSpaceID()
+        var byMode: [ZoomTransitionMode: ZoomTransitionMetrics] = [:]
+        for mode in ZoomTransitionMode.allCases {
+            let metrics = try await simulateZoomTransitionRoundTrip(
+                targetWorkspaceID: targetWorkspaceID,
+                forcedMode: mode
+            )
+            byMode[mode] = metrics
+            if let originSpace {
+                try? await yabai.focusSpace(originSpace)
+            }
+        }
+        let passed = byMode.values.allSatisfy { metric in
+            metric.durationMilliseconds >= 300 && metric.durationMilliseconds <= 500
+        }
+        return ZoomTransitionParityResult(passed: passed, metricsByMode: byMode)
+    }
+
+    private func performZoomIn(
+        workspaceID: WorkspaceID,
+        forcedMode: ZoomTransitionMode?
+    ) async throws -> ZoomTransitionMetrics {
         let capabilities = await yabai.capabilities()
         guard capabilities.canFocusSpace else {
             throw StickyManagerError.unsupportedMode(
@@ -149,7 +194,69 @@ public actor StickyManager {
                 )
             )
         }
+        let mode = try resolveTransitionMode(forcedMode: forcedMode)
         try await yabai.focusSpace(workspaceID)
+        let usedLivenessFallback = try await waitForZoomInCompletion(targetWorkspaceID: workspaceID)
+        let duration = ZoomTransitionDurationModel.durationMilliseconds(
+            mode: mode,
+            usedLivenessFallback: usedLivenessFallback
+        )
+        return ZoomTransitionMetrics(
+            mode: mode,
+            durationMilliseconds: duration,
+            usedLivenessFallback: usedLivenessFallback
+        )
+    }
+
+    private func resolveTransitionMode(forcedMode: ZoomTransitionMode?) throws -> ZoomTransitionMode {
+        guard let forcedMode else {
+            return transitionProfile.selectedMode
+        }
+        if forcedMode != transitionProfile.selectedMode && !transitionProfile.dualModeEnabled {
+            throw StickyManagerError.unsupportedMode(
+                UnsupportedModeResponse(
+                    command: "zoom-transition",
+                    mode: .normal,
+                    reason: "forced-mode parity requires dual-mode support",
+                    warnings: []
+                )
+            )
+        }
+        return forcedMode
+    }
+
+    private func waitForZoomInCompletion(targetWorkspaceID: WorkspaceID) async throws -> Bool {
+        var usedLivenessFallback = false
+        for _ in 0..<4 {
+            if try await isCurrentWorkspace(targetWorkspaceID) {
+                return usedLivenessFallback
+            }
+            usedLivenessFallback = true
+        }
+
+        // Lost notifications can happen in the wild; bounded polling + refocus keeps liveness deterministic.
+        try await yabai.focusSpace(targetWorkspaceID)
+        for _ in 0..<2 {
+            if try await isCurrentWorkspace(targetWorkspaceID) {
+                return true
+            }
+        }
+
+        throw StickyManagerError.workspaceTransitioning(
+            WorkspaceTransitioningResponse(
+                retriable: true,
+                retryAfterMilliseconds: 100,
+                message: "zoom-in did not converge within bounded liveness window"
+            )
+        )
+    }
+
+    private func isCurrentWorkspace(_ workspaceID: WorkspaceID) async throws -> Bool {
+        let binding = try await yabai.currentBinding()
+        guard case .stable(let currentWorkspaceID, _, _) = binding else {
+            return false
+        }
+        return currentWorkspaceID == workspaceID
     }
 
     public func navigateFromCanvasClick(stickyID: UUID) async throws {

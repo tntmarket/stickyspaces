@@ -138,6 +138,55 @@ struct CanvasLayoutTests {
         #expect(second.regions.first(where: { $0.workspaceID == workspace1 })?.isActive == false)
     }
 
+    @Test("test_activeWorkspaceHighlight_visibleInCanvas")
+    func test_activeWorkspaceHighlight_visibleInCanvas() async throws {
+        let workspace1 = WorkspaceID(rawValue: 1)
+        let workspace2 = WorkspaceID(rawValue: 2)
+        let yabai = FakeYabaiQuerying(currentSpace: workspace2)
+        await yabai.setTopologySnapshot(
+            WorkspaceTopologySnapshot(
+                spaces: [
+                    WorkspaceDescriptor(workspaceID: workspace1, index: 1, displayID: 1),
+                    WorkspaceDescriptor(workspaceID: workspace2, index: 2, displayID: 1)
+                ],
+                primaryDisplayID: 1
+            )
+        )
+        let manager = StickyManager(
+            store: StickyStore(),
+            yabai: yabai,
+            panelSync: InMemoryPanelSync()
+        )
+
+        let snapshot = try await manager.zoomOutSnapshot()
+        let activeRegion = try #require(snapshot.regions.first(where: { $0.workspaceID == workspace2 }))
+        #expect(activeRegion.isActive)
+        #expect(activeRegion.frame.width > 0)
+        #expect(activeRegion.frame.height > 0)
+        #expect(snapshot.invariants.isEmpty)
+    }
+
+    @Test("test_panelToCanvasAlignment_matchesScreenPositions")
+    func test_panelToCanvasAlignment_matchesScreenPositions() async throws {
+        let transform = PanelCanvasAlignmentContract(
+            canvasOriginInScreenCoords: CGPoint(x: 640, y: 280),
+            scale: 0.4
+        )
+        let sampledPanelPoints = [
+            CGPoint(x: 640, y: 280),
+            CGPoint(x: 700.25, y: 365.75),
+            CGPoint(x: 1220.5, y: 910.125),
+            CGPoint(x: 1880.875, y: 1200.25)
+        ]
+
+        for panelPoint in sampledPanelPoints {
+            let canvasPoint = transform.panelToCanvas(panelPoint)
+            let projectedBack = transform.canvasToScreen(canvasPoint)
+            let delta = hypot(projectedBack.x - panelPoint.x, projectedBack.y - panelPoint.y)
+            #expect(delta < 1.0)
+        }
+    }
+
     @Test("test_zoomOut_isDeterministicAcrossRepeatedInvocations")
     func test_zoomOut_isDeterministicAcrossRepeatedInvocations() async throws {
         let workspace1 = WorkspaceID(rawValue: 1)

@@ -39,7 +39,7 @@ The app exposes a programmatic CLI API over a Unix domain socket with write comm
 - **FR-8**: A knowledge worker should be able to navigate to any workspace by clicking its sticky in the zoom-out canvas — _because spatial navigation ("click the one on the left") is lower cognitive load than recalling workspace numbers._
 - **FR-9**: A knowledge worker should be able to freely arrange workspace regions on the zoom-out canvas — _because spatial arrangement lets users encode task relationships (grouping related work together), leveraging their strong spatial memory._
 - **FR-10**: A knowledge worker should be able to see which workspace is currently active in the zoom-out canvas — _because knowing "where I am now" is the anchor for deciding "where to go next."_
-- **FR-11**: When a workspace is destroyed, all its stickies should be automatically deleted only after destruction is confirmed by conservative topology reconciliation — _because orphaned stickies are confusing, but false-positive deletion would cause irreversible context loss._
+- **FR-11**: When a workspace is destroyed, its stickies should disappear from user-visible surfaces immediately and be hard-deleted only after conservative topology confirmation — _because orphaned stickies are confusing, but false-positive hard deletion would cause irreversible context loss._
 
 ### Non-Functional Requirements
 
@@ -49,6 +49,7 @@ The app exposes a programmatic CLI API over a Unix domain socket with write comm
 - **NFR-4**: A developer should be able to add a new CLI command within 1 hour — _because the CLI is the primary integration surface for Keyboard Maestro, automation, and testing, and the command set will grow across phases._
 - **NFR-5**: The project structure, build system, and test infrastructure must be fully operable through text file manipulation and CLI commands, with no dependency on GUI tools — _because the primary development workflow is AI-agent-driven, and agents cannot interact with Xcode's GUI or manipulate opaque binary project files._
 - **NFR-6**: Default sticky styling must be readable at a glance (minimum 14pt effective text size, high-contrast foreground/background, and no decorative chrome) — _because re-orientation fails if users must squint or parse visual noise after every context switch._
+- **NFR-7**: App/CLI IPC compatibility must be explicit and versioned (server supports protocol version N and N-1) — _because automation environments commonly drift binaries, and silent wire incompatibility causes fragile behavior and emergency rewrites._
 
 ### Constraints
 
@@ -59,7 +60,8 @@ The app exposes a programmatic CLI API over a Unix domain socket with write comm
 - **C-5**: MVP assumes a single-display configuration. On multi-display setups, the app enters explicit Single-Display Mode bound to a latched `primaryDisplayID` captured at startup — `WorkspaceMonitor` filters `allSpaces()` strictly by that ID, stickies are positioned in the primary-display coordinate system, and commands from non-primary-display contexts return a structured unsupported-mode error — _because multi-display Space management introduces per-display space sets, ambiguous "current workspace" semantics, and cross-display coordinate transforms that are orthogonal to the core product hypothesis._
 - **C-6**: MVP must remain fully local: no outbound network calls and no telemetry — _because this is a personal productivity utility handling sensitive in-progress work context, and users must trust that all data stays on-device._
 - **C-7**: Missing system prerequisites (Accessibility permission, Keyboard Maestro wiring, or yabai availability) must fail gracefully with actionable remediation steps — _because onboarding friction is expected, and silent failure would feel like data loss or random breakage._
-- **C-8**: On startup, the app must run a yabai capability probe (`currentSpace`, `allSpaces`, `focusSpace`, lifecycle diff fidelity) and enter explicit degraded mode if any capability is unavailable — _because external dependency drift is expected and must not silently corrupt workspace state._
+- **C-8**: On startup, the app must run a yabai capability probe (`currentSpace`, `allSpaces`, `focusSpace`, lifecycle diff fidelity) and expose capability-scoped degraded behavior (not a single opaque degraded bucket) — _because external dependency drift is expected and must not silently corrupt workspace state._
+- **C-9**: The app must enforce single-instance authority over the Unix socket and in-memory store; second launch attempts must fail safely with actionable output — _because split-brain control planes can make stickies appear lost or uncontrollable._
 
 ---
 
@@ -225,6 +227,13 @@ enum RuntimeMode: String, Codable, Sendable {
     case singleDisplay
     case degraded
 }
+
+struct CapabilityState: Codable, Sendable {
+    let canReadCurrentSpace: Bool
+    let canListSpaces: Bool
+    let canFocusSpace: Bool
+    let canDiffTopology: Bool
+}
 ```
 
 **IPC Protocol (typed request/response):**
@@ -233,6 +242,7 @@ All requests and responses are newline-delimited JSON over the socket. The wire 
 
 ```swift
 enum IPCRequest: Codable, Sendable {
+    case hello(protocolVersion: Int)
     case new(text: String?, x: CGFloat?, y: CGFloat?)
     case edit(id: UUID, text: String)
     case move(id: UUID, x: CGFloat, y: CGFloat)
@@ -250,6 +260,16 @@ enum IPCRequest: Codable, Sendable {
 }
 
 enum IPCResponse: Codable, Sendable {
+    case hello(
+        serverProtocolVersion: Int,
+        minSupportedClientVersion: Int,
+        capabilities: CapabilityState
+    )
+    case protocolMismatch(
+        serverProtocolVersion: Int,
+        minSupportedClientVersion: Int,
+        message: String
+    )
     case created(id: UUID, workspaceID: WorkspaceID)
     case ok
     case sticky(StickyNote)
@@ -276,7 +296,14 @@ Data flow: CLI command → `StickySpacesClient` → Unix socket → `IPCServer` 
 
 Socket path: `~/.config/stickyspaces/sock`
 
-All requests and responses are newline-delimited JSON over the socket, encoded/decoded via the `IPCRequest`/`IPCResponse` enums defined in the Data Model section. The exact wire format is whatever Swift's `Codable` synthesis produces for these enums — it is an implementation detail. Clients MUST use `StickySpacesClient` (which encodes/decodes via the shared types) rather than hand-crafting JSON.
+All requests and responses are newline-delimited JSON over the socket, encoded/decoded via the `IPCRequest`/`IPCResponse` enums defined in the Data Model section. The wire schema is versioned and stable (manual `Codable` mapping in `StickySpacesShared`, not implicit enum-synthesis shape). Clients MUST use `StickySpacesClient` (which encodes/decodes via the shared types) rather than hand-crafting JSON.
+
+**Protocol handshake and compatibility policy:**
+
+- `StickySpacesClient` sends `.hello(protocolVersion:)` before the first request on a connection.
+- Server responds with `.hello(serverProtocolVersion:minSupportedClientVersion:capabilities:)`.
+- If incompatible, server responds with `.protocolMismatch(...)`, client prints actionable upgrade guidance, and exits non-zero.
+- Compatibility policy: server supports protocol versions `N` and `N-1` only (`N` = server protocol version).
 
 **Write commands (actions):**
 
@@ -307,7 +334,13 @@ All requests and responses are newline-delimited JSON over the socket, encoded/d
 Operational-mode signaling is structured:
 
 - `status` returns `mode` (`normal`, `singleDisplay`, or `degraded`) plus machine-readable warning strings.
+- `status` also includes capability-derived behavior context (`CapabilityState`) via handshake response; clients cache and surface this when commands are unavailable.
 - Commands blocked by mode constraints return `.unsupportedMode(code:message:)` instead of generic `.error(String)`.
+- Command gating is capability-scoped:
+  - `new/edit/move/resize/dismiss/list/get`: require `canReadCurrentSpace`
+  - `zoom-in` and canvas navigation: require `canFocusSpace`
+  - topology-dependent cleanup paths: require `canDiffTopology`
+  - space-list/canvas synthesis paths: require `canListSpaces`
 
 **`verifySync` Semantics:**
 
@@ -324,10 +357,15 @@ Mismatches are returned as human-readable strings, e.g., `"sticky <id>: position
 
 When `StickySpacesClient` fails to connect to the Unix socket (connection refused or socket file absent), it throws `StickySpacesError.socketConnectionFailed` with a user-facing message: `"StickySpaces is not running. Launch StickySpaces.app first."` The CLI prints this to stderr and exits with code 1.
 
+If handshake fails with `.protocolMismatch(...)`, CLI prints: `"StickySpaces protocol mismatch (client X, server supports Y..Z). Update app/CLI to matching versions."` and exits non-zero.
+
+If app startup fails single-instance lock acquisition, the second launch prints: `"StickySpaces is already running (pid <pid>). Reuse existing instance."` and exits non-zero without modifying socket state.
+
 Socket lifecycle:
-- **On launch**: `IPCServer` deletes any stale socket file at `~/.config/stickyspaces/sock` before binding (handles prior crash without clean shutdown).
-- **On termination**: `AppDelegate.applicationWillTerminate` deletes the socket file.
-- **On signal** (SIGINT/SIGTERM): Register a signal handler in `main.swift` that deletes the socket file before exiting. Note: Swift signal handlers cannot safely call Foundation APIs — use POSIX `unlink()` for the socket file deletion.
+- **Single-instance authority**: app acquires an exclusive lock file (`~/.config/stickyspaces/instance.lock`) before starting `IPCServer`; if lock acquisition fails, second launch exits with actionable message and does not touch socket state.
+- **On launch**: stale socket unlink is allowed only after ownership verification (owner PID dead or lock absent). Never unlink a socket owned by a live process.
+- **On termination**: `AppDelegate.applicationWillTerminate` removes socket and releases instance lock.
+- **On signal** (SIGINT/SIGTERM): signal handler performs POSIX cleanup (`unlink` socket path + lock file) before exit.
 
 **YabaiAdapter Protocols:**
 
@@ -352,6 +390,14 @@ struct YabaiSpace: Codable, Sendable {
 ```
 
 `WorkspaceID` is the canonical key used in the store, canvas layout, and IPC types. `YabaiSpace.index` is treated as a mutable routing field only. `YabaiCommanding.focusSpace(_:)` resolves the latest `index` for a given `WorkspaceID` before issuing `yabai -m space --focus`, so in-session index renumbering does not rebind sticky ownership.
+
+Yabai shell-out execution policy:
+
+- `currentSpaceID` timeout: 250ms
+- `allSpaces` timeout: 400ms
+- `focusSpace` timeout: 750ms
+- On timeout, subprocess is terminated and surfaced as structured timeout error.
+- Consecutive timeout threshold (2) transitions relevant capabilities to unavailable, updating runtime mode/status via D-13.
 
 **StickyStore Interface:**
 
@@ -446,6 +492,7 @@ Behavior contract:
 - On `stickyspaces new`, call `makeKeyAndOrderFront(nil)` + `makeFirstResponder(textView)` so typing starts immediately (with or without `--text`).
 - On Space switch, rely on D-3 automatic visibility; panel does not steal focus.
 - Validate z-order in Phase 0 + E2E (above app windows, below system UI).
+- Phase 0 go/no-go includes keystroke-routing validation: immediate typing must land in sticky text input without app activation.
 
 _(Satisfies FR-3, C-1.)_
 
@@ -457,22 +504,31 @@ _(Satisfies FR-3, C-1.)_
 
 **D-10: Single lifecycle authority for Space topology changes.** `WorkspaceTopologyReconciler` is the only component allowed to add/remove workspace entries and trigger sticky deletion for destroyed Spaces. `CanvasWindowController` and other UI components consume reconciled snapshots but never mutate topology directly. This prevents duplicate deletion logic and inconsistent side effects during Space churn. _(Satisfies FR-11 and reduces rework risk.)_
 
-**D-11: Conservative topology deletion protocol.** Workspace removal is two-phase: `suspectedRemoved` then `confirmedRemoved`. `WorkspaceTopologyReconciler` marks a workspace as `suspectedRemoved` when absent from one successful `allSpaces()` snapshot. Hard deletion (`StickyStore.removeAll(for:)`) occurs only after two consecutive successful snapshots at least 2s apart still exclude that workspace and `yabai` health checks are passing. If the workspace reappears before confirmation, state returns to `active` with no deletion. _(Prevents false-positive destructive deletes under transient yabai inconsistency.)_
+**D-11: Conservative topology deletion protocol with hidden quarantine.** Workspace removal is two-phase: `suspectedRemoved` then `confirmedRemoved`. `WorkspaceTopologyReconciler` marks a workspace as `suspectedRemoved` when absent from one successful `allSpaces()` snapshot. On confirmation (two successful snapshots >=2s apart while health checks pass), stickies are removed from user-visible/query surfaces immediately and moved to an in-memory quarantine bucket for 60s. For D-11, "health checks pass" means `canListSpaces == true`, `canDiffTopology == true`, and no active timeout-streak circuit breaker for topology queries. If the workspace reappears during quarantine, stickies are restored automatically. If not, quarantine is purged and deletion becomes irreversible for the session. _(Prevents false-positive destructive deletes under transient yabai inconsistency without exposing archive/history UI.)_
 
-**D-12: Deployment identity contract (dev vs release).** Bare `swift run` executable is dev-only. MVP release artifact is a bundled agent app with stable bundle identifier/path and deterministic startup checks for prerequisites. Phase 0 must pick and freeze the packaging path; later phases cannot proceed on a provisional packaging decision. _(Mitigates late-stage packaging/TCC rework.)_
+**D-12: Deployment identity contract (dev vs release).** Bare `swift run` executable is dev-only. MVP release artifact is a bundled agent app with stable bundle identifier and install path. Phase 0 must freeze packaging path and launch identity, including clean-install, restart, upgrade/reinstall, and relocation behavior checks before feature phases continue. _(Mitigates late-stage packaging/TCC rework.)_
 
-**D-13: Yabai capability contract + degraded mode.** On app startup, `YabaiAdapter` runs a capability probe for `currentSpaceID`, `allSpaces`, `focusSpace`, and topology diff fidelity. If any capability fails, app enters explicit degraded mode: orientation/capture on current workspace remains available, cross-space navigation is disabled, and remediation steps are surfaced through structured `status(mode:warnings:)` output. Commands blocked by mode constraints return `.unsupportedMode(...)` for deterministic client handling. _(Mitigates external dependency drift without silent corruption.)_
+**D-13: Yabai capability matrix + degraded behavior.** On startup and after timeout/error thresholds, `YabaiAdapter` computes a capability matrix (`canReadCurrentSpace`, `canListSpaces`, `canFocusSpace`, `canDiffTopology`). Runtime behavior is gated per command, not by a single opaque degraded bucket. If `canReadCurrentSpace` is unavailable, create/edit/list commands fail fast with structured `.unsupportedMode(...)` (never guess active Space). If navigation capabilities are unavailable, capture/orientation paths remain available where safe and status surfaces warnings deterministically. _(Mitigates external dependency drift without silent corruption.)_
+
+**D-14: Atomic workspace binding for sticky creation.** `stickyspaces new` binds only when active Space is stable under D-2 (converged token not superseded). If the system is mid-transition, command waits up to a bounded timeout (250ms) for convergence, then returns structured retriable error (`workspaceTransitioning`) rather than binding to a potentially wrong Space. _(Preserves trust in workspace binding under rapid switching.)_
+
+**D-15: Versioned IPC + single control-plane authority.** IPC starts with protocol handshake (`N` / `N-1` support policy) and rejects incompatible clients with structured `protocolMismatch`. The app enforces single-instance authority over socket + store via lock ownership, preventing split-brain command routing. _(Prevents automation drift and control-plane takeover races.)_
 
 ### Risks & Assumptions
 
 | Risk | Impact | Mitigation |
 | --- | --- | --- |
 | NSPanel with default `collectionBehavior` does not reliably stay on the correct Space | Breaks C-1 (core premise) | Phase 0 quantified spike (repeat runs); fallback to `ManualVisibility` strategy with explicit show/hide keyed by `WorkspaceID` |
+| Immediate typing after `new` fails to capture keystrokes without app activation | Core capture UX breaks despite visible sticky | Phase 0 go/no-go includes keystroke-routing validation and fallback UX decision before Task 1 |
 | Mutable space indexes cause sticky mis-association after in-session renumbering | Wrong stickies appear on wrong Space (high rework risk) | Canonical identity is `WorkspaceID` (`yabai` space `id`), not index; focus commands resolve latest index at command time; explicit renumbering stress tests |
-| Transient yabai topology inconsistency causes false-positive space deletion | Irreversible sticky data loss | D-11 two-phase deletion protocol (`suspectedRemoved` -> confirmed after two successful snapshots >=2s apart) |
+| Transient yabai topology inconsistency causes false-positive space deletion | Irreversible sticky data loss | D-11 confirmation plus hidden 60s in-memory quarantine and auto-restore on reappearance |
+| Space switch races during `new` bind stickies to wrong Space | Users lose trust in workspace-bound model | D-14 atomic binding rule with bounded retryable `workspaceTransitioning` error |
 | Workspace change notifications are delayed/coalesced/missed | Visibility drift or stuck transition | D-2 dual-source monitoring plus bounded zoom-in fallback polling and timeout recovery |
+| Yabai shell-outs hang instead of failing fast | IPC/UI appears frozen; mode may never update | Per-command timeout policy, process termination on timeout, and capability downgrade thresholds |
 | Canvas bridge mode fails on specific OS/window states | Transition quality regresses or appears discontinuous | Capability-probed transition mode with parity gates for fallback (no blank interval >100ms, spatial anchor continuity, duration budget) |
 | Yabai capability drift after OS/tool updates | Navigation/lifecycle behavior degrades unpredictably | D-13 startup capability probe + explicit degraded mode with remediation output |
+| Version skew between app and CLI/client | Requests fail unpredictably under automation drift | D-15 protocol handshake (`N`/`N-1`) and structured mismatch response |
+| Multiple running instances compete for socket/store ownership | Split-brain command routing and apparent sticky loss | C-9 single-instance lock + safe stale-socket ownership verification |
 | Packaging/permissions state is unstable across launches | User perceives non-deterministic failures | D-12 packaging identity contract, clean-machine launch checks in Phase 0, prerequisite diagnostics before feature commands |
 | Local IPC or rendering path regresses performance over time | Violates NFR-1/NFR-2/NFR-3 despite passing initial spike | Continuous performance regression suite (per-PR smoke + nightly p95 checks), phase gates include latency/memory checks |
 
@@ -490,7 +546,7 @@ _(Satisfies FR-3, C-1.)_
 | Visual correctness | `StickySpacesClient` write commands | `screencapture` → image inspection | Panels render correctly, chrome-less appearance |
 | Data ↔ UI sync | `StickySpacesClient` write commands | `stickyspaces verify-sync` | UI faithfully reflects model state |
 | Performance regression | Scripted command batches | p50/p95 latency + memory snapshots | NFR-1, NFR-2, NFR-3 stay within budget after each phase |
-| Operational health | Launch app/CLI under missing prerequisites | Structured error output | C-2, C-7 graceful failure and recovery guidance |
+| Operational health | Launch app/CLI under missing prerequisites and mode transitions | Structured error/mode output | C-2, C-7, C-8, C-9 graceful failure and recovery guidance |
 
 Performance requirements are **not spike-only**. Phase 0 sets baseline numbers, then per-PR smoke tests and nightly runs enforce regression budgets for NFR-1/NFR-2/NFR-3 and D-2 convergence SLOs.
 
@@ -502,17 +558,21 @@ Performance requirements are **not spike-only**. Phase 0 sets baseline numbers, 
 | FR-8 (sticky-click navigation) | `test_navigateFromCanvas_clickSticky_focusesTargetWorkspace`<br>`test_navigateFromCanvas_clickSticky_switchesWorkspace` |
 | FR-10 (active highlight) | `test_activeWorkspaceHighlight_tracksCurrentWorkspace`<br>`test_activeWorkspaceHighlight_visibleInCanvas` |
 | FR-11 (space destruction cleanup) | `test_workspaceDestroyed_deletesAllStickies`<br>`test_workspaceDestroyed_stickiesDeleted` |
-| NFR-1/NFR-2/NFR-3 (performance budgets) | `test_createSticky_latency_p95_under100ms`<br>`test_zoomTransition_duration_within300to500ms_p95`<br>`test_typicalSession_memory_under30MB` |
+| NFR-1/NFR-2/NFR-3 (performance budgets) | `test_createSticky_latency_p95_under100ms`<br>`test_hotkeyToVisible_latency_p95_under100ms_endToEnd`<br>`test_zoomTransition_duration_within300to500ms_p95`<br>`test_typicalSession_memory_under30MB` |
 | NFR-6 (readability at a glance) | `test_defaultStickyReadability_meetsNFR6` |
+| NFR-7 (versioned IPC compatibility) | `test_protocolHandshake_rejectsUnsupportedClientVersion`<br>`test_protocolVersionSkew_reportsMismatch` |
 | C-1 (panel behavior/z-order) | `test_panelZOrder_aboveApps_belowSystemUI`<br>`test_workspaceSwitch_correctPanelsVisible` |
 | C-2 (yabai outage resilience) | `test_yabaiUnavailable_createStickyGraceful`<br>`test_yabaiUnavailable_existingStickiesPreserved` |
 | C-3 (session scope) | `test_sessionScopedData_clearsAfterAppRestart` |
 | C-5 (single-display mode contract) | `test_multiDisplayDetected_entersSingleDisplayMode`<br>`test_singleDisplayMode_warnsAndBindsPrimaryDisplay`<br>`test_nonPrimaryDisplayCommand_returnsUnsupportedMode` |
 | C-6 (local-only) | `test_localOnlyMode_noOutboundNetworkCalls` |
 | C-7 (actionable prerequisite failure) | `test_missingPrerequisites_returnsActionableError` |
-| C-8 (yabai capability contract) | `test_yabaiCapabilityProbe_setsDegradedModeWhenUnsupported`<br>`test_statusReportsRuntimeModeAndWarnings`<br>`test_statusEndpoint_reportsModeTransitions` |
+| C-8 (yabai capability contract) | `test_yabaiCapabilityProbe_setsDegradedModeWhenUnsupported`<br>`test_yabaiShelloutTimeout_updatesCapabilities`<br>`test_yabaiHang_timeoutDegradesWithoutDeadlock`<br>`test_statusReportsRuntimeModeAndWarnings`<br>`test_statusEndpoint_reportsModeTransitions` |
+| C-9 (single-instance authority) | `test_singleInstanceLock_preventsSocketTakeover`<br>`test_secondLaunch_exitsWithoutSocketTakeover` |
 | D-2 (convergence SLOs) | `test_workspaceVisibility_p95_under150ms`<br>`test_rapidSwitch_stress_finalStateConverges`<br>`test_workspaceConvergence_p95_under1s` |
 | D-11 (safe deletion protocol) | `test_topologyReconciler_requiresConfirmedRemoval_beforeDelete`<br>`test_topologyHealthFlap_noFalseDeletion` |
+| D-14 (atomic create binding) | `test_createDuringSpaceTransition_returnsWorkspaceTransitioning` |
+| D-15 (versioned IPC + single control plane) | `test_protocolHandshake_rejectsUnsupportedClientVersion`<br>`test_singleInstanceLock_preventsSocketTakeover` |
 
 ### Happy-Path Sketch (Unit)
 
@@ -628,6 +688,10 @@ try await waitForAppState { $0.space == WorkspaceID(rawValue: 3) }
 - `test_multiDisplayDetected_entersSingleDisplayMode` — non-primary displays are ignored and warning state is set (C-5)
 - `test_statusReportsRuntimeModeAndWarnings` — `status` returns structured `mode` and machine-readable warnings
 - `test_nonPrimaryDisplayCommand_returnsUnsupportedMode` — blocked commands return `.unsupportedMode` instead of generic error
+- `test_protocolHandshake_rejectsUnsupportedClientVersion` — incompatible protocol versions return structured mismatch response (NFR-7, D-15)
+- `test_singleInstanceLock_preventsSocketTakeover` — second app instance cannot steal socket/store authority (C-9, D-15)
+- `test_createDuringSpaceTransition_returnsWorkspaceTransitioning` — `new` never binds to stale Space during transition races (D-14)
+- `test_yabaiShelloutTimeout_updatesCapabilities` — timeout failures downgrade capabilities and mode deterministically (C-8, D-13)
 
 **E2E tests:**
 
@@ -653,10 +717,16 @@ try await waitForAppState { $0.space == WorkspaceID(rawValue: 3) }
 - `test_workspaceIndexRenumbering_e2e_preservesBinding` — real-space index churn still preserves `WorkspaceID` binding in navigation and lookup
 - `test_topologyHealthFlap_noFalseDeletion` — transient `allSpaces()` omission/health flaps never trigger hard delete without D-11 confirmation
 - `test_statusEndpoint_reportsModeTransitions` — normal/singleDisplay/degraded transitions are visible in `status` output
+- `test_newSticky_immediateKeystrokesCaptured_withoutAppActivation` — immediate typing lands in sticky input while frontmost app remains unchanged
+- `test_hotkeyToVisible_latency_p95_under100ms_endToEnd` — Keyboard Maestro hotkey to visible sticky remains within NFR-1 budget
+- `test_protocolVersionSkew_reportsMismatch` — CLI/app version skew returns structured protocol mismatch guidance
+- `test_secondLaunch_exitsWithoutSocketTakeover` — duplicate launch exits safely without changing active control plane
+- `test_yabaiHang_timeoutDegradesWithoutDeadlock` — hung yabai calls time out, downgrade capabilities, and keep app responsive
 
 **Performance & reliability gates (E2E/nightly):**
 
 - `[smoke][per-PR]` `test_createSticky_latency_p95_under100ms` — 30 create operations, p95 hotkey->visible latency <100ms (NFR-1)
+- `[smoke][per-PR]` `test_hotkeyToVisible_latency_p95_under100ms_endToEnd` — full path (Keyboard Maestro -> CLI -> socket -> app) stays within NFR-1 budget
 - `[smoke][per-PR]` `test_workspaceVisibility_p95_under150ms` — workspace switch to visible stickies p95 <=150ms (D-2 user-visible SLO)
 - `[nightly]` `test_zoomTransition_duration_within300to500ms_p95` — 30 zoom-out/zoom-in round-trips, p95 duration within budget (NFR-2)
 - `[nightly]` `test_typicalSession_memory_under30MB` — 5-10 workspaces, 1-5 stickies each, resident footprint <30MB (NFR-3)
@@ -701,17 +771,22 @@ Run focused experiments before feature build-out. Each experiment must pass **10
 
 - [ ] NSPanel default `collectionBehavior` stays on creator Space across switches
 - [ ] `stickyspaces new` panel is above app windows, below system UI, and does not activate StickySpaces app
+- [ ] `stickyspaces new` captures immediate keystrokes in sticky text input without activating StickySpaces
 - [ ] Unix socket round-trip p95 <5ms
+- [ ] End-to-end hotkey path p95 <100ms (`Keyboard Maestro -> CLI -> socket -> app visible panel`)
 - [ ] Bundled agent launch path works (no Dock icon, stable launch identity)
 - [ ] `.canJoinAllSpaces` canvas overlay works without z-order artifacts
 - [ ] `NSWorkspace` notification + yabai query pipeline converges to final Space under rapid switching
 - [ ] Mode decision freeze: record `ZoomTransitionMode` support (`continuousBridge+fallback` or `discreteFallback-only`) and package path decision in an ADR before Checkpoint B
+- [ ] Product-alignment checkpoint: acknowledge MVP interpretation decisions `A-1`/`A-3` before implementation continues
 - **Acceptance (all required):**
-  - [ ] Visibility latency gate: 10/10 passes
   - [ ] Wrong-space rendering gate: 10/10 passes
+  - [ ] Keystroke-routing gate (`new` + immediate typing) 10/10 passes
+  - [ ] End-to-end hotkey latency gate 10/10 passes
   - [ ] Transition continuity gate: 10/10 passes
   - [ ] Launch identity stability gate: 10/10 passes
-  - [ ] Total gate pass count: 40/40
+  - [ ] Total gate pass count: 50/50
+  - [ ] Product-alignment checkpoint recorded in ADR
 - **Off-ramp**: If contract gates fail, block Task 1+ and execute the pre-decided pivot for that contract (`ManualVisibility` for D-3 failures, `discreteFallback-only` for bridge failures, packaging path switch for launch identity failures).
 
 **Checkpoint B — Foundation + Reliability Baseline (first valuable slice):**
@@ -721,8 +796,11 @@ Run focused experiments before feature build-out. Each experiment must pass **10
 - [ ] `IPCRequest`/`IPCResponse` + `IPCServer` Unix socket routing
 - [ ] `YabaiQuerying.currentSpaceID()` + `StickyManager` panel creation
 - [ ] CLI: `stickyspaces new`, `stickyspaces list`, `stickyspaces status`, `stickyspaces verify-sync`
-- [ ] Baseline resilience: stale socket cleanup on launch; graceful error when yabai unavailable (no crash)
+- [ ] Baseline resilience: single-instance lock ownership + safe stale-socket verification + graceful error when yabai unavailable (no crash)
+- [ ] Protocol compatibility: handshake (`N`/`N-1`) and structured mismatch handling
 - [ ] Startup capability probe + degraded mode entry (`C-8`, `D-13`)
+- [ ] Yabai timeout/circuit-breaker policy wired (timeouts -> capability downgrade -> structured status warnings)
+- [ ] Packaging identity gate: clean install, restart, upgrade/reinstall, and relocation checks pass
 - [ ] NFR smoke gates: create latency p95 and memory smoke baseline captured before Task 1
 - [ ] First unit + E2E tests green (`test_createSticky_associatesWithCurrentWorkspace`, `test_createSticky_appearsOnCurrentWorkspace`)
 - **Acceptance (all required):**
@@ -738,13 +816,16 @@ Run focused experiments before feature build-out. Each experiment must pass **10
 - [ ] `stickyspaces edit` + `client.edit()`
 - [ ] Unit: `test_updateStickyText`
 - [ ] E2E: `test_editSticky_updatesText`
-- **Acceptance**: New sticky is editable immediately; edit command updates text deterministically.
+- **Acceptance (all required):**
+  - [ ] New sticky is editable immediately and receives keystrokes without app activation
+  - [ ] Edit command updates text deterministically
 
 ### Task 2: Workspace Binding + Lifecycle (moved earlier to de-risk core premise)
 
 - [ ] `WorkspaceMonitor`: `NSWorkspace` fast path + 1s periodic reconcile loop (D-2)
 - [ ] `WorkspaceTopologyReconciler`: single owner of add/remove Space lifecycle and sticky pruning (D-10)
 - [ ] Two-phase deletion protocol implemented (`D-11`) with `suspectedRemoved`/`confirmedRemoved` states
+- [ ] Atomic create binding guard (`D-14`) returns retriable `workspaceTransitioning` error when Space state is unstable
 - [ ] Panel visibility strategy wired (`AutomaticVisibility` primary, `ManualVisibility` fallback)
 - [ ] Multi-display detection enters explicit Single-Display Mode with warning state (C-5)
 - [ ] Unit: `test_stickiesFilteredByWorkspace`, `test_workspaceDestroyed_deletesAllStickies`, `test_rapidWorkspaceSwitch_onlyFinalSpaceProcessed`, `test_topologyReconciler_singleAuthority_forDestroyedSpaces`, `test_topologyReconciler_requiresConfirmedRemoval_beforeDelete`, `test_workspaceIndexRenumbering_preservesWorkspaceIDBinding`, `test_statusReportsRuntimeModeAndWarnings`, `test_nonPrimaryDisplayCommand_returnsUnsupportedMode`
@@ -819,6 +900,8 @@ Run focused experiments before feature build-out. Each experiment must pass **10
 - [ ] Operational checks for missing prerequisites (Accessibility, yabai, Keyboard Maestro wiring)
 - [ ] E2E reliability suite: rapid-switch stress + per-space sync verification + renumbering stress + topology health-flap fault injection
 - [ ] D-2 SLO gates: `test_workspaceVisibility_p95_under150ms` and `test_workspaceConvergence_p95_under1s`
+- [ ] IPC authority/compatibility gates: protocol skew handling + second-launch lock behavior
+- [ ] Yabai hang/timeout chaos gate: command timeouts transition to capability-scoped degraded mode without deadlock
 - [ ] Session-scope lifecycle test: restart clears state (`C-3`)
 - [ ] Local-only guardrail test: no outbound network required (`C-6`)
 - [ ] Readability gate: `test_defaultStickyReadability_meetsNFR6`

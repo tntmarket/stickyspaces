@@ -1,0 +1,161 @@
+{
+  "template_version": "1.0",
+  "task_id": "spacetree-6q5.1",
+  "checkpoint": "A",
+  "spec_reference": "docs/stickyspaces-tech-spec.md#Checkpoint A",
+  "run_id": "<fill-with-run-id>",
+  "required_consecutive_runs_per_gate": 10,
+  "run_entry_template": {
+    "run_index": 1,
+    "status": "pending",
+    "measurement_ms": null,
+    "started_at": null,
+    "finished_at": null,
+    "evidence_refs": [],
+    "notes": ""
+  },
+  "gates": [
+    {
+      "gate_id": "A-G1",
+      "name": "NSPanel collectionBehavior stays on creator Space",
+      "acceptance_bucket": "wrong-space-rendering",
+      "command": "python3 scripts/phase0a/record_manual_gate_result.py --run-id \"$RUN_ID\" --gate-id phase0a.ns_panel_space_binding --run-index <1-10> --status <pass|fail>",
+      "evidence_location": "artifacts/phase0a/evidence/$RUN_ID/manual-gates/phase0a.ns_panel_space_binding/",
+      "runs": []
+    },
+    {
+      "gate_id": "A-G2",
+      "name": "New panel is above apps, below system UI, no app activation",
+      "acceptance_bucket": "keystroke-routing",
+      "command": "python3 scripts/phase0a/record_manual_gate_result.py --run-id \"$RUN_ID\" --gate-id phase0a.panel_z_order_non_activation --run-index <1-10> --status <pass|fail>",
+      "evidence_location": "artifacts/phase0a/evidence/$RUN_ID/manual-gates/phase0a.panel_z_order_non_activation/",
+      "runs": []
+    },
+    {
+      "gate_id": "A-G3",
+      "name": "Immediate keystrokes captured without app activation",
+      "acceptance_bucket": "keystroke-routing",
+      "command": "python3 scripts/phase0a/record_manual_gate_result.py --run-id \"$RUN_ID\" --gate-id phase0a.immediate_keystroke_capture --run-index <1-10> --status <pass|fail>",
+      "evidence_location": "artifacts/phase0a/evidence/$RUN_ID/manual-gates/phase0a.immediate_keystroke_capture/",
+      "runs": []
+    },
+    {
+      "gate_id": "A-G4",
+      "name": "Unix socket round-trip p95 below 5ms",
+      "acceptance_bucket": "end-to-end-hotkey-latency",
+      "command": "python3 scripts/phase0a/measure_unix_socket_latency.py --run-id \"$RUN_ID\" --socket-path \"$SOCKET_PATH\" --request '{\"type\":\"status\"}' --append-newline --samples 30 --threshold-ms 5",
+      "evidence_location": "artifacts/phase0a/evidence/$RUN_ID/unix-socket-latency.json",
+      "runs": []
+    },
+    {
+      "gate_id": "A-G5",
+      "name": "End-to-end hotkey path p95 below 100ms",
+      "acceptance_bucket": "end-to-end-hotkey-latency",
+      "command": "python3 scripts/phase0a/measure_hotkey_path_latency.py --run-id \"$RUN_ID\" --trigger-cmd \"$HOTKEY_TRIGGER_CMD\" --visible-probe-cmd \"$VISIBLE_PROBE_CMD\" --reset-cmd \"$RESET_CMD\" --samples 10 --threshold-ms 100",
+      "evidence_location": "artifacts/phase0a/evidence/$RUN_ID/hotkey-path-latency.json",
+      "runs": []
+    },
+    {
+      "gate_id": "A-G6",
+      "name": "Bundled agent launch identity stable across lifecycle scenarios",
+      "acceptance_bucket": "launch-identity-stability",
+      "command": "python3 scripts/phase0a/check_launch_identity_stability.py --run-id \"$RUN_ID\" --identity-cmd \"$IDENTITY_CMD\" --clean-install-cmd \"$CLEAN_INSTALL_CMD\" --restart-cmd \"$RESTART_CMD\" --upgrade-reinstall-cmd \"$UPGRADE_CMD\" --relocation-cmd \"$RELOCATION_CMD\" --cycles 10",
+      "evidence_location": "artifacts/phase0a/evidence/$RUN_ID/launch-identity-stability.json",
+      "runs": []
+    },
+    {
+      "gate_id": "A-G7",
+      "name": "Canvas canJoinAllSpaces overlay has no z-order artifacts",
+      "acceptance_bucket": "transition-continuity",
+      "command": "python3 scripts/phase0a/record_manual_gate_result.py --run-id \"$RUN_ID\" --gate-id phase0a.can_join_all_spaces_overlay --run-index <1-10> --status <pass|fail>",
+      "evidence_location": "artifacts/phase0a/evidence/$RUN_ID/manual-gates/phase0a.can_join_all_spaces_overlay/",
+      "runs": []
+    },
+    {
+      "gate_id": "A-G8",
+      "name": "NSWorkspace+yabai pipeline converges under rapid switching",
+      "acceptance_bucket": "wrong-space-rendering",
+      "command": "python3 scripts/phase0a/probe_workspace_convergence.py --run-id \"$RUN_ID\" --stimulus-cmd \"$RAPID_SWITCH_CMD\" --observed-space-cmd \"$OBSERVED_SPACE_CMD\" --truth-space-cmd \"$TRUTH_SPACE_CMD\" --samples 10 --threshold-ms 1000",
+      "evidence_location": "artifacts/phase0a/evidence/$RUN_ID/workspace-convergence.json",
+      "runs": []
+    },
+    {
+      "gate_id": "A-G9",
+      "name": "Mode decision freeze captured",
+      "acceptance_bucket": "transition-continuity",
+      "command": "python3 scripts/phase0a/capture_mode_decision.py --run-id \"$RUN_ID\" --transition-mode-profile \"continuousBridge+fallback\" --package-path-decision \"Bundled agent app with stable bundle identifier + install path\" --adr-path \"docs/adr/0001-phase-0a-transition-mode-and-mvp-alignment.md\"",
+      "evidence_location": "artifacts/phase0a/evidence/$RUN_ID/mode-decision-freeze.json",
+      "runs": []
+    },
+    {
+      "gate_id": "A-G10",
+      "name": "Product alignment checkpoint acknowledges A-1 and A-3",
+      "acceptance_bucket": "product-alignment",
+      "command": "Review ADR and freeze record for A-1/A-3 acknowledgements",
+      "evidence_location": "docs/adr/0001-phase-0a-transition-mode-and-mvp-alignment.md",
+      "runs": []
+    }
+  ],
+  "acceptance_rollup": [
+    {
+      "acceptance_id": "wrong-space-rendering",
+      "required_passes": 10,
+      "actual_passes": 0,
+      "status": "pending",
+      "gate_ids": [
+        "A-G1",
+        "A-G8"
+      ]
+    },
+    {
+      "acceptance_id": "keystroke-routing",
+      "required_passes": 10,
+      "actual_passes": 0,
+      "status": "pending",
+      "gate_ids": [
+        "A-G2",
+        "A-G3"
+      ]
+    },
+    {
+      "acceptance_id": "end-to-end-hotkey-latency",
+      "required_passes": 10,
+      "actual_passes": 0,
+      "status": "pending",
+      "gate_ids": [
+        "A-G5"
+      ]
+    },
+    {
+      "acceptance_id": "transition-continuity",
+      "required_passes": 10,
+      "actual_passes": 0,
+      "status": "pending",
+      "gate_ids": [
+        "A-G7",
+        "A-G9"
+      ]
+    },
+    {
+      "acceptance_id": "launch-identity-stability",
+      "required_passes": 10,
+      "actual_passes": 0,
+      "status": "pending",
+      "gate_ids": [
+        "A-G6"
+      ]
+    }
+  ],
+  "product_alignment_checkpoint": {
+    "required": true,
+    "status": "pending",
+    "adr_path": "docs/adr/0001-phase-0a-transition-mode-and-mvp-alignment.md",
+    "a1_acknowledged": false,
+    "a3_acknowledged": false
+  },
+  "totals": {
+    "required_gate_pass_count": 50,
+    "actual_gate_pass_count": 0,
+    "status": "pending"
+  }
+}

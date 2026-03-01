@@ -42,10 +42,17 @@ public actor IPCServer {
             )
         case .new(let text):
             do {
-                let sticky = try await manager.createSticky(text: text ?? "")
-                return .created(id: sticky.id, workspaceID: sticky.workspaceID)
+                let created = try await manager.createSticky(text: text ?? "")
+                return .created(id: created.sticky.id, workspaceID: created.sticky.workspaceID)
             } catch {
                 return .error("yabai unavailable")
+            }
+        case .edit(let id, let text):
+            do {
+                try await manager.updateStickyText(id: id, text: text)
+                return .ok
+            } catch {
+                return .error("sticky not found")
             }
         case .list(let space):
             let notes = await manager.list(space: space)

@@ -3,6 +3,7 @@ import Foundation
 public enum IPCRequest: Codable, Sendable, Equatable {
     case hello(protocolVersion: Int)
     case new(text: String?)
+    case edit(id: UUID, text: String)
     case list(space: WorkspaceID?)
     case status
     case verifySync
@@ -20,6 +21,7 @@ public enum IPCResponse: Codable, Sendable, Equatable {
         message: String
     )
     case created(id: UUID, workspaceID: WorkspaceID)
+    case ok
     case stickyList([StickyNote])
     case status(StatusSnapshot)
     case syncResult(synced: Bool, mismatches: [String])

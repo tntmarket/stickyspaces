@@ -1,6 +1,20 @@
 import Foundation
 import StickySpacesShared
 
+public enum StickyManagerError: Error {
+    case stickyNotFound(UUID)
+}
+
+public struct StickyCreateResult: Sendable, Equatable {
+    public let sticky: StickyNote
+    public let focusIntent: StickyFocusIntent
+
+    public init(sticky: StickyNote, focusIntent: StickyFocusIntent) {
+        self.sticky = sticky
+        self.focusIntent = focusIntent
+    }
+}
+
 public actor StickyManager {
     private let store: StickyStore
     private let yabai: any YabaiQuerying
@@ -16,11 +30,18 @@ public actor StickyManager {
         self.panelSync = panelSync
     }
 
-    public func createSticky(text: String) async throws -> StickyNote {
+    public func createSticky(text: String) async throws -> StickyCreateResult {
         let workspaceID = try await yabai.currentSpaceID()
         let note = await store.createSticky(text: text, workspaceID: workspaceID)
         await panelSync.show(stickyID: note.id, workspaceID: workspaceID)
-        return note
+        return StickyCreateResult(sticky: note, focusIntent: note.focusIntent)
+    }
+
+    public func updateStickyText(id: UUID, text: String) async throws {
+        let updated = await store.updateText(stickyID: id, text: text)
+        guard updated != nil else {
+            throw StickyManagerError.stickyNotFound(id)
+        }
     }
 
     public func list(space: WorkspaceID?) async -> [StickyNote] {

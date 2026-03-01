@@ -27,4 +27,26 @@ struct IPCRoutingTests {
         #expect(listed[0].text == "One")
         #expect(listed[0].workspaceID == WorkspaceID(rawValue: 3))
     }
+
+    @Test("client edit updates sticky text over IPC")
+    func clientEditUpdatesStickyTextOverIPC() async throws {
+        let manager = StickyManager(
+            store: StickyStore(),
+            yabai: FakeYabaiQuerying(currentSpace: WorkspaceID(rawValue: 3)),
+            panelSync: InMemoryPanelSync()
+        )
+        let server = IPCServer(manager: manager)
+        let client = StickySpacesClient(
+            transport: ClosureTransport { line in
+                await server.handleLine(line)
+            }
+        )
+
+        let created = try await client.new(text: "Before")
+        try await client.edit(id: created.id, text: "After")
+        let listed = try await client.list(space: nil)
+
+        #expect(listed.count == 1)
+        #expect(listed[0].text == "After")
+    }
 }

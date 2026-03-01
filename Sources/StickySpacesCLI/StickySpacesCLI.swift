@@ -50,6 +50,13 @@ public enum StickySpacesCLICommandRunner {
             let text = parseOption("--text", in: args)
             let created = try await app.client.new(text: text)
             return "created id: \(created.id) workspace: \(created.workspaceID.rawValue)"
+        case "edit":
+            guard args.count >= 2, let id = UUID(uuidString: args[1]) else {
+                return "usage: stickyspaces edit <id> --text TEXT"
+            }
+            let text = parseOption("--text", in: args) ?? ""
+            try await app.client.edit(id: id, text: text)
+            return "edited id: \(id)"
         case "list":
             let notes = try await app.client.list(space: nil)
             if notes.isEmpty {
@@ -80,6 +87,7 @@ public enum StickySpacesCLICommandRunner {
         """
         stickyspaces commands:
           new [--text TEXT]
+          edit <id> --text TEXT
           list
           status
           verify-sync

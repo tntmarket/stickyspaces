@@ -32,4 +32,22 @@ struct CLITests {
         )
         #expect(verifyOutput.contains("synced: true"))
     }
+
+    @Test("test_editSticky_updatesText")
+    func test_editSticky_updatesText() async throws {
+        let app = DemoAppFactory.makeReady()
+        let created = try await app.client.new(text: "Before")
+
+        let editOutput = try await StickySpacesCLICommandRunner.run(
+            args: ["edit", created.id.uuidString, "--text", "After"],
+            app: app
+        )
+        #expect(editOutput.contains("edited"))
+
+        let listOutput = try await StickySpacesCLICommandRunner.run(
+            args: ["list"],
+            app: app
+        )
+        #expect(listOutput.contains("After"))
+    }
 }

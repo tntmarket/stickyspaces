@@ -18,6 +18,15 @@ public actor StickyStore {
             .sorted { $0.createdAt < $1.createdAt }
     }
 
+    public func updateText(stickyID: UUID, text: String) -> StickyNote? {
+        guard var note = notes[stickyID] else {
+            return nil
+        }
+        note.text = text
+        notes[stickyID] = note
+        return note
+    }
+
     public func count() -> Int {
         notes.count
     }

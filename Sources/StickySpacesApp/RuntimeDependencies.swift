@@ -13,6 +13,7 @@ public enum WorkspaceBinding: Sendable, Equatable {
 public protocol YabaiQuerying: Sendable {
     func currentBinding() async throws -> WorkspaceBinding
     func topologySnapshot() async throws -> WorkspaceTopologySnapshot
+    func focusSpace(_ workspaceID: WorkspaceID) async throws
     func capabilities() async -> CapabilityState
 }
 
@@ -32,6 +33,7 @@ public actor FakeYabaiQuerying: YabaiQuerying {
     private var binding: WorkspaceBinding
     private var snapshot: WorkspaceTopologySnapshot
     private var capabilityState: CapabilityState
+    private var focusedSpaceHistory: [WorkspaceID] = []
 
     public init(currentSpace: WorkspaceID?) {
         if let currentSpace {
@@ -66,6 +68,15 @@ public actor FakeYabaiQuerying: YabaiQuerying {
         capabilityState
     }
 
+    public func focusSpace(_ workspaceID: WorkspaceID) async throws {
+        guard capabilityState.canFocusSpace else {
+            throw YabaiUnavailableError.unavailable
+        }
+        focusedSpaceHistory.append(workspaceID)
+        let displayID = snapshot.spaces.first(where: { $0.workspaceID == workspaceID })?.displayID ?? 1
+        binding = .stable(workspaceID: workspaceID, displayID: displayID, isPrimaryDisplay: true)
+    }
+
     public func setCurrentBinding(_ newBinding: WorkspaceBinding) {
         binding = newBinding
     }
@@ -76,6 +87,10 @@ public actor FakeYabaiQuerying: YabaiQuerying {
 
     public func setCapabilities(_ capabilities: CapabilityState) {
         capabilityState = capabilities
+    }
+
+    public func focusedSpaces() -> [WorkspaceID] {
+        focusedSpaceHistory
     }
 }
 

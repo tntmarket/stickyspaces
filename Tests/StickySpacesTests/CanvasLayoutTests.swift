@@ -166,4 +166,34 @@ struct CanvasLayoutTests {
             #expect(next == baseline)
         }
     }
+
+    @Test("test_navigateFromCanvas_clickSticky_focusesTargetWorkspace")
+    func test_navigateFromCanvas_clickSticky_focusesTargetWorkspace() async throws {
+        let workspace1 = WorkspaceID(rawValue: 1)
+        let workspace2 = WorkspaceID(rawValue: 2)
+        let yabai = FakeYabaiQuerying(currentSpace: workspace1)
+        await yabai.setTopologySnapshot(
+            WorkspaceTopologySnapshot(
+                spaces: [
+                    WorkspaceDescriptor(workspaceID: workspace1, index: 1, displayID: 1),
+                    WorkspaceDescriptor(workspaceID: workspace2, index: 2, displayID: 1)
+                ],
+                primaryDisplayID: 1
+            )
+        )
+        let manager = StickyManager(
+            store: StickyStore(),
+            yabai: yabai,
+            panelSync: InMemoryPanelSync()
+        )
+
+        await yabai.setCurrentBinding(.stable(workspaceID: workspace2, displayID: 1, isPrimaryDisplay: true))
+        let created = try await manager.createSticky(text: "Navigate to me")
+        await yabai.setCurrentBinding(.stable(workspaceID: workspace1, displayID: 1, isPrimaryDisplay: true))
+
+        try await manager.navigateFromCanvasClick(stickyID: created.sticky.id)
+
+        #expect(try await yabai.currentSpaceID() == workspace2)
+        #expect(await yabai.focusedSpaces() == [workspace2])
+    }
 }

@@ -139,6 +139,20 @@ struct CLITests {
         #expect(first == second)
     }
 
+    @Test("test_zoomOut_showsCanvas")
+    func test_zoomOut_showsCanvas() async throws {
+        let app = DemoAppFactory.makeReady()
+        _ = try await app.client.new(text: "One")
+
+        let output = try await StickySpacesCLICommandRunner.run(
+            args: ["zoom-out"],
+            app: app
+        )
+
+        #expect(output.contains("active-workspace"))
+        #expect(output.contains("workspace"))
+    }
+
     @Test("canvas-layout prints persisted workspace positions")
     func canvasLayoutPrintsPersistedWorkspacePositions() async throws {
         let app = DemoAppFactory.makeReady()
@@ -149,5 +163,29 @@ struct CLITests {
 
         #expect(output.contains("workspace"))
         #expect(output.contains("display"))
+    }
+
+    @Test("test_canvasArrangementPersists")
+    func test_canvasArrangementPersists() async throws {
+        let app = DemoAppFactory.makeReady()
+
+        let moveRegionOutput = try await StickySpacesCLICommandRunner.run(
+            args: ["move-region", "--space", "1", "--x", "640", "--y", "320"],
+            app: app
+        )
+        #expect(moveRegionOutput.contains("moved region"))
+
+        let first = try await StickySpacesCLICommandRunner.run(
+            args: ["canvas-layout"],
+            app: app
+        )
+        let second = try await StickySpacesCLICommandRunner.run(
+            args: ["canvas-layout"],
+            app: app
+        )
+
+        #expect(first.contains("workspace 1"))
+        #expect(first.contains("(640.0,320.0)"))
+        #expect(first == second)
     }
 }

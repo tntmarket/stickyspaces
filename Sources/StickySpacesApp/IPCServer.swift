@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 import StickySpacesShared
 
@@ -93,6 +94,24 @@ public actor IPCServer {
             } catch {
                 return .error("cannot zoom-out")
             }
+        case .zoomIn(let workspaceID):
+            do {
+                try await manager.zoomIn(workspaceID: workspaceID)
+                return .ok
+            } catch StickyManagerError.unsupportedMode(let details) {
+                return .unsupportedMode(details)
+            } catch {
+                return .error("cannot zoom-in")
+            }
+        case .navigateFromCanvasClick(let stickyID):
+            do {
+                try await manager.navigateFromCanvasClick(stickyID: stickyID)
+                return .ok
+            } catch StickyManagerError.unsupportedMode(let details) {
+                return .unsupportedMode(details)
+            } catch {
+                return .error("cannot navigate from canvas")
+            }
         case .list(let space):
             let notes = await manager.list(space: space)
             return .stickyList(notes)
@@ -110,6 +129,9 @@ public actor IPCServer {
             } catch {
                 return .error("cannot read canvas-layout")
             }
+        case .moveRegion(let workspaceID, let x, let y):
+            await manager.setWorkspacePosition(workspaceID, position: CGPoint(x: x, y: y))
+            return .ok
         case .status:
             let snapshot = await manager.status()
             return .status(snapshot)

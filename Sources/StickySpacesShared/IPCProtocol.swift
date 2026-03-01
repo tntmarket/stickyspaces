@@ -9,9 +9,12 @@ public enum IPCRequest: Codable, Sendable, Equatable {
     case move(id: UUID, x: Double, y: Double)
     case resize(id: UUID, width: Double, height: Double)
     case zoomOut
+    case zoomIn(space: WorkspaceID)
+    case navigateFromCanvasClick(stickyID: UUID)
     case list(space: WorkspaceID?)
     case get(id: UUID)
     case canvasLayout
+    case moveRegion(space: WorkspaceID, x: Double, y: Double)
     case status
     case verifySync
 }

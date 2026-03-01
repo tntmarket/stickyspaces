@@ -137,6 +137,28 @@ public actor StickyManager {
         )
     }
 
+    public func zoomIn(workspaceID: WorkspaceID) async throws {
+        let capabilities = await yabai.capabilities()
+        guard capabilities.canFocusSpace else {
+            throw StickyManagerError.unsupportedMode(
+                UnsupportedModeResponse(
+                    command: "zoom-in",
+                    mode: .degraded,
+                    reason: "focus-space capability unavailable",
+                    warnings: ["yabai cannot focus spaces"]
+                )
+            )
+        }
+        try await yabai.focusSpace(workspaceID)
+    }
+
+    public func navigateFromCanvasClick(stickyID: UUID) async throws {
+        guard let sticky = await store.sticky(id: stickyID) else {
+            throw StickyManagerError.stickyNotFound(stickyID)
+        }
+        try await zoomIn(workspaceID: sticky.workspaceID)
+    }
+
     public func status() async -> StatusSnapshot {
         let stickyCount = await store.count()
         let runtime = await runtimeProjection()

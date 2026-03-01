@@ -102,6 +102,12 @@ public enum StickySpacesCLICommandRunner {
             let active = snapshot.activeWorkspaceID?.rawValue.description ?? "none"
             let invariants = snapshot.invariants.joined(separator: ";")
             return "active-workspace: \(active) zoom: \(snapshot.viewport.zoomScale) pan: (\(snapshot.viewport.panOffset.x),\(snapshot.viewport.panOffset.y)) invariants: [\(invariants)]\n\(regionSummary)"
+        case "zoom-in":
+            guard let rawSpace = parseIntOption("--space", in: args) else {
+                return "usage: stickyspaces zoom-in --space N"
+            }
+            try await app.client.zoomIn(space: WorkspaceID(rawValue: rawSpace))
+            return "zoomed-in workspace: \(rawSpace)"
         case "list":
             let notes = try await app.client.list(space: nil)
             if notes.isEmpty {
@@ -126,6 +132,16 @@ public enum StickySpacesCLICommandRunner {
                     return "workspace \(workspaceID.rawValue) display \(displayID) position (\(point.x),\(point.y))"
                 }
             return lines.isEmpty ? "no workspaces" : lines.joined(separator: "\n")
+        case "move-region":
+            guard
+                let rawSpace = parseIntOption("--space", in: args),
+                let x = parseDoubleOption("--x", in: args),
+                let y = parseDoubleOption("--y", in: args)
+            else {
+                return "usage: stickyspaces move-region --space N --x X --y Y"
+            }
+            try await app.client.moveRegion(space: WorkspaceID(rawValue: rawSpace), x: x, y: y)
+            return "moved region for workspace \(rawSpace)"
         case "status":
             let status = try await app.client.status()
             return "running: \(status.running) mode: \(status.mode.rawValue) space: \(status.space?.rawValue.description ?? "none") count: \(status.stickyCount) warnings: \(status.warnings.joined(separator: ",")) panel: \(status.panelVisibilityStrategy.rawValue)"
@@ -151,6 +167,13 @@ public enum StickySpacesCLICommandRunner {
         return Double(raw)
     }
 
+    private static func parseIntOption(_ key: String, in args: [String]) -> Int? {
+        guard let raw = parseOption(key, in: args) else {
+            return nil
+        }
+        return Int(raw)
+    }
+
     private static func usage() -> String {
         """
         stickyspaces commands:
@@ -161,9 +184,11 @@ public enum StickySpacesCLICommandRunner {
           move <id> --x X --y Y
           resize <id> --width W --height H
           zoom-out
+          zoom-in --space N
           list
           get <id>
           canvas-layout
+          move-region --space N --x X --y Y
           status
           verify-sync
         """

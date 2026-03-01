@@ -107,4 +107,41 @@ struct IPCRoutingTests {
         #expect(visible.contains(first.id) == false)
         #expect(visible.contains(third.id))
     }
+
+    @Test("test_navigateFromCanvas_clickSticky_switchesWorkspace")
+    func test_navigateFromCanvas_clickSticky_switchesWorkspace() async throws {
+        let workspace1 = WorkspaceID(rawValue: 1)
+        let workspace2 = WorkspaceID(rawValue: 2)
+        let yabai = FakeYabaiQuerying(currentSpace: workspace1)
+        await yabai.setTopologySnapshot(
+            WorkspaceTopologySnapshot(
+                spaces: [
+                    WorkspaceDescriptor(workspaceID: workspace1, index: 1, displayID: 1),
+                    WorkspaceDescriptor(workspaceID: workspace2, index: 2, displayID: 1)
+                ],
+                primaryDisplayID: 1
+            )
+        )
+        let manager = StickyManager(
+            store: StickyStore(),
+            yabai: yabai,
+            panelSync: InMemoryPanelSync()
+        )
+        let server = IPCServer(manager: manager)
+        let client = StickySpacesClient(
+            transport: ClosureTransport { line in
+                await server.handleLine(line)
+            }
+        )
+
+        await yabai.setCurrentBinding(.stable(workspaceID: workspace2, displayID: 1, isPrimaryDisplay: true))
+        let sticky = try await client.new(text: "Go here")
+        await yabai.setCurrentBinding(.stable(workspaceID: workspace1, displayID: 1, isPrimaryDisplay: true))
+
+        try await client.navigateFromCanvasClick(stickyID: sticky.id)
+        let status = try await client.status()
+
+        #expect(status.space == workspace2)
+        #expect(await yabai.focusedSpaces() == [workspace2])
+    }
 }

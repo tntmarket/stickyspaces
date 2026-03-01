@@ -10,7 +10,8 @@ let package = Package(
         .library(name: "StickySpacesShared", targets: ["StickySpacesShared"]),
         .library(name: "StickySpacesApp", targets: ["StickySpacesApp"]),
         .library(name: "StickySpacesClient", targets: ["StickySpacesClient"]),
-        .executable(name: "stickyspaces", targets: ["StickySpacesCLI"])
+        .executable(name: "stickyspaces", targets: ["StickySpacesCLI"]),
+        .executable(name: "stickyspaces-ui-e2e", targets: ["StickySpacesUIE2E"])
     ],
     dependencies: [
         .package(url: "https://github.com/apple/swift-testing.git", branch: "main")
@@ -30,6 +31,10 @@ let package = Package(
         .executableTarget(
             name: "StickySpacesCLI",
             dependencies: ["StickySpacesApp", "StickySpacesClient", "StickySpacesShared"]
+        ),
+        .executableTarget(
+            name: "StickySpacesUIE2E",
+            dependencies: ["StickySpacesApp", "StickySpacesShared"]
         ),
         .testTarget(
             name: "StickySpacesTests",

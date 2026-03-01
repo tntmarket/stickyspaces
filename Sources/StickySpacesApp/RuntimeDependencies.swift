@@ -174,9 +174,19 @@ public actor FakeYabaiQuerying: YabaiQuerying {
 
 public protocol PanelSyncing: Sendable {
     func show(stickyID: UUID, workspaceID: WorkspaceID) async
+    func show(sticky: StickyNote) async
+    func update(sticky: StickyNote) async
     func hide(stickyID: UUID, workspaceID: WorkspaceID) async
     func hideAll(on workspaceID: WorkspaceID) async
     func visibleStickyIDs(on workspaceID: WorkspaceID) async -> Set<UUID>
+}
+
+public extension PanelSyncing {
+    func show(sticky: StickyNote) async {
+        await show(stickyID: sticky.id, workspaceID: sticky.workspaceID)
+    }
+
+    func update(sticky: StickyNote) async {}
 }
 
 public actor InMemoryPanelSync: PanelSyncing {

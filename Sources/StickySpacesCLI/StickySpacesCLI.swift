@@ -67,7 +67,7 @@ public enum StickySpacesCLICommandRunner {
                 .joined(separator: "\n")
         case "status":
             let status = try await app.client.status()
-            return "running: \(status.running) mode: \(status.mode.rawValue) space: \(status.space?.rawValue.description ?? "none") count: \(status.stickyCount) warnings: \(status.warnings.joined(separator: ","))"
+            return "running: \(status.running) mode: \(status.mode.rawValue) space: \(status.space?.rawValue.description ?? "none") count: \(status.stickyCount) warnings: \(status.warnings.joined(separator: ",")) panel: \(status.panelVisibilityStrategy.rawValue)"
         case "verify-sync":
             let result = try await app.client.verifySync()
             return "synced: \(result.synced) mismatches: \(result.mismatches.joined(separator: ";"))"

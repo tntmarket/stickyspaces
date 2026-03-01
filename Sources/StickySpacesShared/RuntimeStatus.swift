@@ -2,7 +2,13 @@ import Foundation
 
 public enum RuntimeMode: String, Codable, Sendable {
     case normal
+    case singleDisplay
     case degraded
+}
+
+public enum PanelVisibilityStrategy: String, Codable, Sendable, Equatable {
+    case automaticPrimary
+    case manualFallback
 }
 
 public struct CapabilityState: Codable, Sendable, Equatable {
@@ -44,19 +50,22 @@ public struct StatusSnapshot: Codable, Sendable, Equatable {
     public let stickyCount: Int
     public let mode: RuntimeMode
     public let warnings: [String]
+    public let panelVisibilityStrategy: PanelVisibilityStrategy
 
     public init(
         running: Bool,
         space: WorkspaceID?,
         stickyCount: Int,
         mode: RuntimeMode,
-        warnings: [String]
+        warnings: [String],
+        panelVisibilityStrategy: PanelVisibilityStrategy
     ) {
         self.running = running
         self.space = space
         self.stickyCount = stickyCount
         self.mode = mode
         self.warnings = warnings
+        self.panelVisibilityStrategy = panelVisibilityStrategy
     }
 }
 

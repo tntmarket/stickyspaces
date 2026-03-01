@@ -44,6 +44,10 @@ public actor IPCServer {
             do {
                 let created = try await manager.createSticky(text: text ?? "")
                 return .created(id: created.sticky.id, workspaceID: created.sticky.workspaceID)
+            } catch StickyManagerError.workspaceTransitioning(let details) {
+                return .workspaceTransitioning(details)
+            } catch StickyManagerError.unsupportedMode(let details) {
+                return .unsupportedMode(details)
             } catch {
                 return .error("yabai unavailable")
             }

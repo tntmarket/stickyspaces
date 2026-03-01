@@ -5,22 +5,77 @@ public enum YabaiUnavailableError: Error {
     case unavailable
 }
 
-public protocol YabaiQuerying: Sendable {
-    func currentSpaceID() async throws -> WorkspaceID
+public enum WorkspaceBinding: Sendable, Equatable {
+    case stable(workspaceID: WorkspaceID, displayID: Int, isPrimaryDisplay: Bool)
+    case transitioning(retryAfterMilliseconds: Int)
 }
 
-public struct FakeYabaiQuerying: YabaiQuerying {
-    public let currentSpace: WorkspaceID?
+public protocol YabaiQuerying: Sendable {
+    func currentBinding() async throws -> WorkspaceBinding
+    func topologySnapshot() async throws -> WorkspaceTopologySnapshot
+    func capabilities() async -> CapabilityState
+}
 
-    public init(currentSpace: WorkspaceID?) {
-        self.currentSpace = currentSpace
-    }
-
-    public func currentSpaceID() async throws -> WorkspaceID {
-        guard let currentSpace else {
+public extension YabaiQuerying {
+    func currentSpaceID() async throws -> WorkspaceID {
+        let binding = try await currentBinding()
+        switch binding {
+        case .stable(let workspaceID, _, _):
+            return workspaceID
+        case .transitioning:
             throw YabaiUnavailableError.unavailable
         }
-        return currentSpace
+    }
+}
+
+public actor FakeYabaiQuerying: YabaiQuerying {
+    private var binding: WorkspaceBinding
+    private var snapshot: WorkspaceTopologySnapshot
+    private var capabilityState: CapabilityState
+
+    public init(currentSpace: WorkspaceID?) {
+        if let currentSpace {
+            binding = .stable(workspaceID: currentSpace, displayID: 1, isPrimaryDisplay: true)
+            capabilityState = .normal
+            snapshot = WorkspaceTopologySnapshot(
+                spaces: [WorkspaceDescriptor(workspaceID: currentSpace, index: 1, displayID: 1)],
+                primaryDisplayID: 1
+            )
+        } else {
+            binding = .transitioning(retryAfterMilliseconds: 250)
+            capabilityState = .degraded
+            snapshot = WorkspaceTopologySnapshot(spaces: [], primaryDisplayID: 1)
+        }
+    }
+
+    public func currentBinding() async throws -> WorkspaceBinding {
+        if capabilityState.canReadCurrentSpace == false {
+            throw YabaiUnavailableError.unavailable
+        }
+        return binding
+    }
+
+    public func topologySnapshot() async throws -> WorkspaceTopologySnapshot {
+        if capabilityState.canListSpaces == false {
+            throw YabaiUnavailableError.unavailable
+        }
+        return snapshot
+    }
+
+    public func capabilities() async -> CapabilityState {
+        capabilityState
+    }
+
+    public func setCurrentBinding(_ newBinding: WorkspaceBinding) {
+        binding = newBinding
+    }
+
+    public func setTopologySnapshot(_ newSnapshot: WorkspaceTopologySnapshot) {
+        snapshot = newSnapshot
+    }
+
+    public func setCapabilities(_ capabilities: CapabilityState) {
+        capabilityState = capabilities
     }
 }
 

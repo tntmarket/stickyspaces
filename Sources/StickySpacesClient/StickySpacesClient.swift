@@ -20,6 +20,8 @@ public struct ClosureTransport: IPCTransport {
 public enum StickySpacesClientError: Error {
     case unexpectedResponse(String)
     case serverError(String)
+    case workspaceTransitioning(WorkspaceTransitioningResponse)
+    case unsupportedMode(UnsupportedModeResponse)
 }
 
 public struct StickySpacesClient: Sendable {
@@ -80,6 +82,12 @@ public struct StickySpacesClient: Sendable {
     }
 
     private func throwResponseError<T>(_ response: IPCResponse) throws -> T {
+        if case .workspaceTransitioning(let details) = response {
+            throw StickySpacesClientError.workspaceTransitioning(details)
+        }
+        if case .unsupportedMode(let details) = response {
+            throw StickySpacesClientError.unsupportedMode(details)
+        }
         if case .error(let message) = response {
             throw StickySpacesClientError.serverError(message)
         }

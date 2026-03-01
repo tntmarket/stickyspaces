@@ -25,7 +25,35 @@ public enum IPCResponse: Codable, Sendable, Equatable {
     case stickyList([StickyNote])
     case status(StatusSnapshot)
     case syncResult(synced: Bool, mismatches: [String])
+    case workspaceTransitioning(WorkspaceTransitioningResponse)
+    case unsupportedMode(UnsupportedModeResponse)
     case error(String)
+}
+
+public struct WorkspaceTransitioningResponse: Codable, Sendable, Equatable {
+    public let retriable: Bool
+    public let retryAfterMilliseconds: Int
+    public let message: String
+
+    public init(retriable: Bool, retryAfterMilliseconds: Int, message: String) {
+        self.retriable = retriable
+        self.retryAfterMilliseconds = retryAfterMilliseconds
+        self.message = message
+    }
+}
+
+public struct UnsupportedModeResponse: Codable, Sendable, Equatable {
+    public let command: String
+    public let mode: RuntimeMode
+    public let reason: String
+    public let warnings: [String]
+
+    public init(command: String, mode: RuntimeMode, reason: String, warnings: [String]) {
+        self.command = command
+        self.mode = mode
+        self.reason = reason
+        self.warnings = warnings
+    }
 }
 
 public enum IPCWireCodec {

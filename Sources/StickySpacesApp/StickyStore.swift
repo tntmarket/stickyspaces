@@ -30,4 +30,8 @@ public actor StickyStore {
     public func count() -> Int {
         notes.count
     }
+
+    public func deleteAll(in workspaceID: WorkspaceID) {
+        notes = notes.filter { $0.value.workspaceID != workspaceID }
+    }
 }

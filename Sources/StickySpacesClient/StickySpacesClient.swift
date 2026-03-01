@@ -47,6 +47,22 @@ public struct StickySpacesClient: Sendable {
         return try throwResponseError(response)
     }
 
+    public func dismiss(id: UUID) async throws {
+        let response = try await send(.dismiss(id: id))
+        if case .ok = response {
+            return
+        }
+        return try throwResponseError(response)
+    }
+
+    public func dismissAll() async throws {
+        let response = try await send(.dismissAll)
+        if case .ok = response {
+            return
+        }
+        return try throwResponseError(response)
+    }
+
     public func move(id: UUID, x: Double, y: Double) async throws {
         let response = try await send(.move(id: id, x: x, y: y))
         if case .ok = response {

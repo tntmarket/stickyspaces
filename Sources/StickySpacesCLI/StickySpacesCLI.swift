@@ -57,6 +57,15 @@ public enum StickySpacesCLICommandRunner {
             let text = parseOption("--text", in: args) ?? ""
             try await app.client.edit(id: id, text: text)
             return "edited id: \(id)"
+        case "dismiss":
+            guard args.count >= 2, let id = UUID(uuidString: args[1]) else {
+                return "usage: stickyspaces dismiss <id>"
+            }
+            try await app.client.dismiss(id: id)
+            return "dismissed id: \(id)"
+        case "dismiss-all":
+            try await app.client.dismissAll()
+            return "dismissed all"
         case "move":
             guard args.count >= 2, let id = UUID(uuidString: args[1]) else {
                 return "usage: stickyspaces move <id> --x X --y Y"
@@ -125,6 +134,8 @@ public enum StickySpacesCLICommandRunner {
         stickyspaces commands:
           new [--text TEXT]
           edit <id> --text TEXT
+          dismiss <id>
+          dismiss-all
           move <id> --x X --y Y
           resize <id> --width W --height H
           list

@@ -93,6 +93,19 @@ public actor StickyManager {
         return note
     }
 
+    public func dismissSticky(id: UUID) async throws {
+        guard let removed = await store.deleteSticky(id: id) else {
+            throw StickyManagerError.stickyNotFound(id)
+        }
+        await panelSync.hide(stickyID: removed.id, workspaceID: removed.workspaceID)
+    }
+
+    public func dismissAllStickiesOnCurrentWorkspace() async throws {
+        let workspaceID = try await yabai.currentSpaceID()
+        await store.deleteAll(in: workspaceID)
+        await panelSync.hideAll(on: workspaceID)
+    }
+
     public func list(space: WorkspaceID?) async -> [StickyNote] {
         await store.list(space: space)
     }

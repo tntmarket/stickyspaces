@@ -58,6 +58,20 @@ public actor IPCServer {
             } catch {
                 return .error("sticky not found")
             }
+        case .dismiss(let id):
+            do {
+                try await manager.dismissSticky(id: id)
+                return .ok
+            } catch {
+                return .error("sticky not found")
+            }
+        case .dismissAll:
+            do {
+                try await manager.dismissAllStickiesOnCurrentWorkspace()
+                return .ok
+            } catch {
+                return .error("cannot dismiss-all")
+            }
         case .move(let id, let x, let y):
             do {
                 try await manager.updateStickyPosition(id: id, x: x, y: y)

@@ -39,6 +39,44 @@ struct StickyStoreWorkspaceTests {
         #expect(result.mismatches.isEmpty)
     }
 
+    @Test("test_createMultipleStickies_sameWorkspace")
+    func test_createMultipleStickies_sameWorkspace() async throws {
+        let workspace = WorkspaceID(rawValue: 12)
+        let manager = StickyManager(
+            store: StickyStore(),
+            yabai: FakeYabaiQuerying(currentSpace: workspace),
+            panelSync: InMemoryPanelSync()
+        )
+
+        _ = try await manager.createSticky(text: "One")
+        _ = try await manager.createSticky(text: "Two")
+        _ = try await manager.createSticky(text: "Three")
+        let notes = await manager.list(space: workspace)
+
+        #expect(notes.count == 3)
+        #expect(Set(notes.map(\.workspaceID)) == [workspace])
+    }
+
+    @Test("test_dismissSticky_removesFromStore")
+    func test_dismissSticky_removesFromStore() async throws {
+        let workspace = WorkspaceID(rawValue: 12)
+        let manager = StickyManager(
+            store: StickyStore(),
+            yabai: FakeYabaiQuerying(currentSpace: workspace),
+            panelSync: InMemoryPanelSync()
+        )
+
+        let first = try await manager.createSticky(text: "One")
+        _ = try await manager.createSticky(text: "Two")
+        _ = try await manager.createSticky(text: "Three")
+
+        try await manager.dismissSticky(id: first.sticky.id)
+        let notes = await manager.list(space: workspace)
+
+        #expect(notes.count == 2)
+        #expect(notes.contains(where: { $0.id == first.sticky.id }) == false)
+    }
+
     @Test("test_updateStickyText")
     func test_updateStickyText() async throws {
         let workspace = WorkspaceID(rawValue: 7)

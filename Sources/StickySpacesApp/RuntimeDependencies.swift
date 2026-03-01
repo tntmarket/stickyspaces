@@ -81,6 +81,8 @@ public actor FakeYabaiQuerying: YabaiQuerying {
 
 public protocol PanelSyncing: Sendable {
     func show(stickyID: UUID, workspaceID: WorkspaceID) async
+    func hide(stickyID: UUID, workspaceID: WorkspaceID) async
+    func hideAll(on workspaceID: WorkspaceID) async
     func visibleStickyIDs(on workspaceID: WorkspaceID) async -> Set<UUID>
 }
 
@@ -93,6 +95,16 @@ public actor InMemoryPanelSync: PanelSyncing {
         var ids = visibleByWorkspace[workspaceID, default: Set<UUID>()]
         ids.insert(stickyID)
         visibleByWorkspace[workspaceID] = ids
+    }
+
+    public func hide(stickyID: UUID, workspaceID: WorkspaceID) async {
+        var ids = visibleByWorkspace[workspaceID, default: Set<UUID>()]
+        ids.remove(stickyID)
+        visibleByWorkspace[workspaceID] = ids
+    }
+
+    public func hideAll(on workspaceID: WorkspaceID) async {
+        visibleByWorkspace[workspaceID] = []
     }
 
     public func visibleStickyIDs(on workspaceID: WorkspaceID) async -> Set<UUID> {

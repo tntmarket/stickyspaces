@@ -54,6 +54,10 @@ public actor StickyStore {
         notes.count
     }
 
+    public func deleteSticky(id: UUID) -> StickyNote? {
+        notes.removeValue(forKey: id)
+    }
+
     public func deleteAll(in workspaceID: WorkspaceID) {
         notes = notes.filter { $0.value.workspaceID != workspaceID }
     }

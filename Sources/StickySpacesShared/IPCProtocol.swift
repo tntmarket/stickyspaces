@@ -4,6 +4,8 @@ public enum IPCRequest: Codable, Sendable, Equatable {
     case hello(protocolVersion: Int)
     case new(text: String?)
     case edit(id: UUID, text: String)
+    case dismiss(id: UUID)
+    case dismissAll
     case move(id: UUID, x: Double, y: Double)
     case resize(id: UUID, width: Double, height: Double)
     case list(space: WorkspaceID?)

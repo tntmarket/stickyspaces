@@ -86,4 +86,38 @@ struct CLITests {
         )
         #expect(getOutput.contains("size: (333.75, 222.5)"))
     }
+
+    @Test("dismiss removes single sticky and dismiss-all clears remainder")
+    func dismissAndDismissAllCommands() async throws {
+        let app = DemoAppFactory.makeReady()
+        let first = try await app.client.new(text: "One")
+        _ = try await app.client.new(text: "Two")
+        _ = try await app.client.new(text: "Three")
+
+        let dismissOutput = try await StickySpacesCLICommandRunner.run(
+            args: ["dismiss", first.id.uuidString],
+            app: app
+        )
+        #expect(dismissOutput.contains("dismissed"))
+
+        let listAfterDismiss = try await StickySpacesCLICommandRunner.run(
+            args: ["list"],
+            app: app
+        )
+        #expect(listAfterDismiss.contains("One") == false)
+        #expect(listAfterDismiss.contains("Two"))
+        #expect(listAfterDismiss.contains("Three"))
+
+        let dismissAllOutput = try await StickySpacesCLICommandRunner.run(
+            args: ["dismiss-all"],
+            app: app
+        )
+        #expect(dismissAllOutput.contains("dismissed all"))
+
+        let listAfterDismissAll = try await StickySpacesCLICommandRunner.run(
+            args: ["list"],
+            app: app
+        )
+        #expect(listAfterDismissAll == "no stickies")
+    }
 }

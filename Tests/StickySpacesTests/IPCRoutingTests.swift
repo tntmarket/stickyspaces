@@ -74,4 +74,37 @@ struct IPCRoutingTests {
         #expect(note.size.width == 300.75)
         #expect(note.size.height == 210.5)
     }
+
+    @Test("integration: multiple visible stickies support dismiss and keep visibility in sync")
+    func multipleVisibleStickiesDismissKeepsVisibilityInSync() async throws {
+        let workspace = WorkspaceID(rawValue: 5)
+        let panelSync = InMemoryPanelSync()
+        let manager = StickyManager(
+            store: StickyStore(),
+            yabai: FakeYabaiQuerying(currentSpace: workspace),
+            panelSync: panelSync
+        )
+        let server = IPCServer(manager: manager)
+        let client = StickySpacesClient(
+            transport: ClosureTransport { line in
+                await server.handleLine(line)
+            }
+        )
+
+        let first = try await client.new(text: "One")
+        let second = try await client.new(text: "Two")
+        let third = try await client.new(text: "Three")
+        _ = second
+
+        try await client.dismiss(id: first.id)
+
+        let listed = try await client.list(space: workspace)
+        let visible = await panelSync.visibleStickyIDs(on: workspace)
+
+        #expect(listed.count == 2)
+        #expect(visible.count == 2)
+        #expect(listed.contains(where: { $0.id == first.id }) == false)
+        #expect(visible.contains(first.id) == false)
+        #expect(visible.contains(third.id))
+    }
 }

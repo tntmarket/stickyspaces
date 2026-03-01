@@ -18,25 +18,36 @@ public struct StickyCreateResult: Sendable, Equatable {
     }
 }
 
+public struct YabaiTimeoutPolicy: Sendable, Equatable {
+    public let focusSpaceTimeoutMilliseconds: Int
+
+    public init(focusSpaceTimeoutMilliseconds: Int = 750) {
+        self.focusSpaceTimeoutMilliseconds = focusSpaceTimeoutMilliseconds
+    }
+}
+
 public actor StickyManager {
     private let store: StickyStore
     private let yabai: any YabaiQuerying
     private let panelSync: any PanelSyncing
     private let topologyReconciler: WorkspaceTopologyReconciler
     private let transitionProfile: ZoomTransitionProfile
+    private let timeoutPolicy: YabaiTimeoutPolicy
 
     public init(
         store: StickyStore,
         yabai: any YabaiQuerying,
         panelSync: any PanelSyncing,
         topologyReconciler: WorkspaceTopologyReconciler = WorkspaceTopologyReconciler(),
-        transitionProfile: ZoomTransitionProfile = .phase0Selected
+        transitionProfile: ZoomTransitionProfile = .phase0Selected,
+        timeoutPolicy: YabaiTimeoutPolicy = YabaiTimeoutPolicy()
     ) {
         self.store = store
         self.yabai = yabai
         self.panelSync = panelSync
         self.topologyReconciler = topologyReconciler
         self.transitionProfile = transitionProfile
+        self.timeoutPolicy = timeoutPolicy
     }
 
     public func createSticky(text: String) async throws -> StickyCreateResult {
@@ -195,7 +206,32 @@ public actor StickyManager {
             )
         }
         let mode = try resolveTransitionMode(forcedMode: forcedMode)
-        try await yabai.focusSpace(workspaceID)
+        let focusResult = await withBoundedTimeout(milliseconds: timeoutPolicy.focusSpaceTimeoutMilliseconds) {
+            try await self.yabai.focusSpace(workspaceID)
+        }
+        switch focusResult {
+        case .success:
+            break
+        case .timedOut:
+            await yabai.markTimeout(for: .focusSpace)
+            throw StickyManagerError.unsupportedMode(
+                UnsupportedModeResponse(
+                    command: "zoom-in",
+                    mode: .degraded,
+                    reason: "focus-space timed out",
+                    warnings: ["focus-space capability downgraded after timeout"]
+                )
+            )
+        case .failure:
+            throw StickyManagerError.unsupportedMode(
+                UnsupportedModeResponse(
+                    command: "zoom-in",
+                    mode: .degraded,
+                    reason: "focus-space unavailable",
+                    warnings: ["yabai cannot focus spaces"]
+                )
+            )
+        }
         let usedLivenessFallback = try await waitForZoomInCompletion(targetWorkspaceID: workspaceID)
         let duration = ZoomTransitionDurationModel.durationMilliseconds(
             mode: mode,
@@ -282,10 +318,14 @@ public actor StickyManager {
 
     public func verifySync() async throws -> VerifySyncResult {
         let currentSpace = try await yabai.currentSpaceID()
-        let expected = Set(await store.list(space: currentSpace).map(\.id))
-        let visible = await panelSync.visibleStickyIDs(on: currentSpace)
+        return await verifySync(space: currentSpace)
+    }
+
+    public func verifySync(space: WorkspaceID) async -> VerifySyncResult {
+        let expected = Set(await store.list(space: space).map(\.id))
+        let visible = await panelSync.visibleStickyIDs(on: space)
         let missing = expected.subtracting(visible)
-        let mismatches = missing.map { "sticky \($0) is missing panel on workspace \(currentSpace.rawValue)" }
+        let mismatches = missing.map { "sticky \($0) is missing panel on workspace \(space.rawValue)" }
         return VerifySyncResult(synced: mismatches.isEmpty, mismatches: mismatches.sorted())
     }
 
@@ -323,8 +363,19 @@ public actor StickyManager {
     ) {
         let capabilities = await yabai.capabilities()
         let strategy: PanelVisibilityStrategy = capabilities.canDiffTopology ? .automaticPrimary : .manualFallback
+        var warnings: [String] = []
+        if capabilities.canReadCurrentSpace == false { warnings.append("yabai current-space capability unavailable") }
+        if capabilities.canListSpaces == false { warnings.append("yabai list-spaces capability unavailable") }
+        if capabilities.canFocusSpace == false { warnings.append("yabai focus-space capability unavailable") }
+        if capabilities.canDiffTopology == false { warnings.append("yabai topology-diff capability unavailable") }
+        let hasCapabilityDegradation = warnings.isEmpty == false
+
         if capabilities.canReadCurrentSpace == false {
-            return (nil, .degraded, ["yabai unavailable"], strategy)
+            var degradedWarnings = warnings
+            if degradedWarnings.contains("yabai unavailable") == false {
+                degradedWarnings.insert("yabai unavailable", at: 0)
+            }
+            return (nil, .degraded, degradedWarnings, strategy)
         }
 
         let binding = try? await yabai.currentBinding()
@@ -337,15 +388,48 @@ public actor StickyManager {
         }
 
         guard let topology = try? await yabai.topologySnapshot() else {
-            return (currentSpace, .degraded, ["cannot list spaces"], strategy)
+            return (currentSpace, .degraded, warnings.isEmpty ? ["cannot list spaces"] : warnings, strategy)
         }
 
         let displayIDs = Set(topology.spaces.map(\.displayID))
         if displayIDs.count > 1 {
             let warning = "single-display mode: binding to primary display \(topology.primaryDisplayID)"
-            return (currentSpace, .singleDisplay, [warning], strategy)
+            return (currentSpace, .singleDisplay, [warning] + warnings, strategy)
+        }
+
+        if hasCapabilityDegradation {
+            return (currentSpace, .degraded, warnings, strategy)
         }
 
         return (currentSpace, .normal, [], strategy)
+    }
+
+    private enum TimeoutResult {
+        case success
+        case timedOut
+        case failure
+    }
+
+    private func withBoundedTimeout(
+        milliseconds: Int,
+        operation: @escaping @Sendable () async throws -> Void
+    ) async -> TimeoutResult {
+        await withTaskGroup(of: TimeoutResult.self) { group in
+            group.addTask {
+                do {
+                    try await operation()
+                    return .success
+                } catch {
+                    return .failure
+                }
+            }
+            group.addTask {
+                try? await Task.sleep(for: .milliseconds(max(1, milliseconds)))
+                return .timedOut
+            }
+            let result = await group.next() ?? .failure
+            group.cancelAll()
+            return result
+        }
     }
 }

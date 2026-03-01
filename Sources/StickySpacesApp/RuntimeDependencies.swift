@@ -15,6 +15,7 @@ public protocol YabaiQuerying: Sendable {
     func topologySnapshot() async throws -> WorkspaceTopologySnapshot
     func focusSpace(_ workspaceID: WorkspaceID) async throws
     func capabilities() async -> CapabilityState
+    func markTimeout(for capability: YabaiCapability) async
 }
 
 public extension YabaiQuerying {
@@ -27,6 +28,15 @@ public extension YabaiQuerying {
             throw YabaiUnavailableError.unavailable
         }
     }
+
+    func markTimeout(for capability: YabaiCapability) async {}
+}
+
+public enum YabaiCapability: Sendable {
+    case readCurrentSpace
+    case listSpaces
+    case focusSpace
+    case diffTopology
 }
 
 public actor FakeYabaiQuerying: YabaiQuerying {
@@ -36,6 +46,7 @@ public actor FakeYabaiQuerying: YabaiQuerying {
     private var focusedSpaceHistory: [WorkspaceID] = []
     private var pendingFocusRecovery: (workspaceID: WorkspaceID, remainingPolls: Int)?
     private var nextFocusNotificationLossPolls: Int?
+    private var focusHangDelayMilliseconds: Int = 0
 
     public init(currentSpace: WorkspaceID?) {
         if let currentSpace {
@@ -90,6 +101,9 @@ public actor FakeYabaiQuerying: YabaiQuerying {
         guard capabilityState.canFocusSpace else {
             throw YabaiUnavailableError.unavailable
         }
+        if focusHangDelayMilliseconds > 0 {
+            try await Task.sleep(for: .milliseconds(focusHangDelayMilliseconds))
+        }
         focusedSpaceHistory.append(workspaceID)
         if let polls = nextFocusNotificationLossPolls {
             nextFocusNotificationLossPolls = nil
@@ -114,6 +128,43 @@ public actor FakeYabaiQuerying: YabaiQuerying {
 
     public func setFocusNotificationLoss(pollsBeforeRecovery: Int) {
         nextFocusNotificationLossPolls = max(0, pollsBeforeRecovery)
+    }
+
+    public func setFocusHang(delayMilliseconds: Int) {
+        focusHangDelayMilliseconds = max(0, delayMilliseconds)
+    }
+
+    public func markTimeout(for capability: YabaiCapability) async {
+        switch capability {
+        case .focusSpace:
+            capabilityState = CapabilityState(
+                canReadCurrentSpace: capabilityState.canReadCurrentSpace,
+                canListSpaces: capabilityState.canListSpaces,
+                canFocusSpace: false,
+                canDiffTopology: capabilityState.canDiffTopology
+            )
+        case .readCurrentSpace:
+            capabilityState = CapabilityState(
+                canReadCurrentSpace: false,
+                canListSpaces: capabilityState.canListSpaces,
+                canFocusSpace: capabilityState.canFocusSpace,
+                canDiffTopology: capabilityState.canDiffTopology
+            )
+        case .listSpaces:
+            capabilityState = CapabilityState(
+                canReadCurrentSpace: capabilityState.canReadCurrentSpace,
+                canListSpaces: false,
+                canFocusSpace: capabilityState.canFocusSpace,
+                canDiffTopology: capabilityState.canDiffTopology
+            )
+        case .diffTopology:
+            capabilityState = CapabilityState(
+                canReadCurrentSpace: capabilityState.canReadCurrentSpace,
+                canListSpaces: capabilityState.canListSpaces,
+                canFocusSpace: capabilityState.canFocusSpace,
+                canDiffTopology: false
+            )
+        }
     }
 
     public func focusedSpaces() -> [WorkspaceID] {

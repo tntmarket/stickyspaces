@@ -10,6 +10,8 @@ public enum StickySpacesAutomationCommand: Sendable, Equatable {
     case moveSticky(id: UUID, x: Double, y: Double)
     case resizeSticky(id: UUID, width: Double, height: Double)
     case zoomOutSnapshot
+    case prepareZoomOutOverview
+    case animatePreparedZoomOutOverview
     case presentZoomOutOverview
     case zoomIn(workspaceID: WorkspaceID)
     case navigateFromCanvasClick(stickyID: UUID)
@@ -108,6 +110,10 @@ public actor StickySpacesAutomationAPI: StickySpacesAutomating {
             return .ok
         case .zoomOutSnapshot:
             return .canvasSnapshot(try await manager.zoomOutSnapshot())
+        case .prepareZoomOutOverview:
+            return try await prepareZoomOutOverview()
+        case .animatePreparedZoomOutOverview:
+            return await animatePreparedZoomOutOverview()
         case .presentZoomOutOverview:
             return try await presentZoomOutOverview()
         case .zoomIn(let workspaceID):
@@ -133,12 +139,23 @@ public actor StickySpacesAutomationAPI: StickySpacesAutomating {
     }
 
     private func presentZoomOutOverview() async throws -> StickySpacesAutomationResponse {
+        let prepared = try await prepareZoomOutOverview()
+        _ = await animatePreparedZoomOutOverview()
+        return prepared
+    }
+
+    private func prepareZoomOutOverview() async throws -> StickySpacesAutomationResponse {
         let snapshot = try await manager.zoomOutSnapshot()
         let notes = await manager.list(space: nil)
         let heroSticky = pickHeroSticky(notes: notes, activeWorkspaceID: snapshot.activeWorkspaceID)
         await hideVisiblePanels(notes: notes)
-        await zoomOutPresenter.present(snapshot: snapshot, heroSticky: heroSticky)
+        await zoomOutPresenter.preparePresentation(snapshot: snapshot, heroSticky: heroSticky)
         return .canvasSnapshot(snapshot)
+    }
+
+    private func animatePreparedZoomOutOverview() async -> StickySpacesAutomationResponse {
+        await zoomOutPresenter.animatePreparedPresentation()
+        return .ok
     }
 
     private func hideVisiblePanels(notes: [StickyNote]) async {

@@ -16,16 +16,16 @@ Run the E2E-oriented integration subset:
 scripts/run-e2e.sh
 ```
 
-Run the screen recorder integration suite (quick path):
+Run the video-backed E2E suite (quick path):
 
 ```bash
-swift test --filter ScreenRecorderIntegrationTests
+swift test --filter ZoomOutCanvasOverviewJourneyTests
 ```
 
-Run the headed/video-backed recorder integration path:
+Run the headed/video-backed recorder journey:
 
 ```bash
-STICKYSPACES_RUN_SCREEN_RECORDING_TESTS=1 swift test --filter ScreenRecorderIntegrationTests
+STICKYSPACES_RUN_SCREEN_RECORDING_TESTS=1 swift test --filter ZoomOutCanvasOverviewJourneyTests
 ```
 
 ## Architecture Boundary

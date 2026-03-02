@@ -152,11 +152,24 @@ actor VideoBackedE2EHarness {
             try? await Task.sleep(for: .milliseconds(max(0, milliseconds)))
             return .none
         case .zoomOut:
-            let response = try await automation.perform(.presentZoomOutOverview)
-            guard case .canvasSnapshot(let snapshot) = response else {
-                throw HarnessError.unexpectedResponse("presentZoomOutOverview")
-            }
+            let snapshot = try await prepareZoomOutOverlay()
+            try await animatePreparedZoomOutOverlay()
             return .snapshot(snapshot)
+        }
+    }
+
+    func prepareZoomOutOverlay() async throws -> CanvasSnapshot {
+        let response = try await automation.perform(.prepareZoomOutOverview)
+        guard case .canvasSnapshot(let snapshot) = response else {
+            throw HarnessError.unexpectedResponse("prepareZoomOutOverview")
+        }
+        return snapshot
+    }
+
+    func animatePreparedZoomOutOverlay() async throws {
+        let response = try await automation.perform(.animatePreparedZoomOutOverview)
+        guard case .ok = response else {
+            throw HarnessError.unexpectedResponse("animatePreparedZoomOutOverview")
         }
     }
 
@@ -170,6 +183,37 @@ actor VideoBackedE2EHarness {
         return result
     }
 
+    func captureScreenshot(name: String, displayID: Int = 1) throws -> URL {
+        let screenshotURL = screenshotOutputURL(name: name)
+        try FileManager.default.createDirectory(
+            at: screenshotURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+
+        let command = Process()
+        command.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
+        command.arguments = [
+            "-x",
+            "-D\(max(1, displayID))",
+            screenshotURL.path
+        ]
+
+        do {
+            try command.run()
+        } catch {
+            throw HarnessError.screenshotCaptureFailed("launch failed: \(error)")
+        }
+        command.waitUntilExit()
+
+        if command.terminationStatus != 0 {
+            throw HarnessError.screenshotCaptureFailed("screencapture exited=\(command.terminationStatus)")
+        }
+        guard FileManager.default.fileExists(atPath: screenshotURL.path) else {
+            throw HarnessError.screenshotCaptureFailed("output missing at \(screenshotURL.path)")
+        }
+        return screenshotURL
+    }
+
     func cleanup() async throws {
         if let activeBackend {
             try? await activeBackend.stop(reason: .teardown)
@@ -179,8 +223,26 @@ actor VideoBackedE2EHarness {
         await debug.hideAllVisiblePanels()
         await presenter.hide()
     }
+
+    private func screenshotOutputURL(name: String) -> URL {
+        let sanitizedName = sanitizeArtifactName(name)
+        return outputURL
+            .deletingLastPathComponent()
+            .appendingPathComponent("screenshots")
+            .appendingPathComponent("\(sanitizedName).png")
+    }
+
+    private func sanitizeArtifactName(_ rawName: String) -> String {
+        let normalized = rawName
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+            .replacingOccurrences(of: "[^a-z0-9]+", with: "-", options: .regularExpression)
+            .trimmingCharacters(in: CharacterSet(charactersIn: "-"))
+        return normalized.isEmpty ? "screenshot" : normalized
+    }
 }
 
 private enum HarnessError: Error {
     case unexpectedResponse(String)
+    case screenshotCaptureFailed(String)
 }

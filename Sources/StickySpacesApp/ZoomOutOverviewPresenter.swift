@@ -7,12 +7,26 @@ import AppKit
 
 public protocol ZoomOutOverviewPresenting: Sendable {
     func present(snapshot: CanvasSnapshot, heroSticky: StickyNote?) async
+    func preparePresentation(snapshot: CanvasSnapshot, heroSticky: StickyNote?) async
+    func animatePreparedPresentation() async
+}
+
+public extension ZoomOutOverviewPresenting {
+    func preparePresentation(snapshot: CanvasSnapshot, heroSticky: StickyNote?) async {
+        await present(snapshot: snapshot, heroSticky: heroSticky)
+    }
+
+    func animatePreparedPresentation() async {}
 }
 
 public struct NoopZoomOutOverviewPresenter: ZoomOutOverviewPresenting, Sendable {
     public init() {}
 
     public func present(snapshot: CanvasSnapshot, heroSticky: StickyNote?) async {}
+
+    public func preparePresentation(snapshot: CanvasSnapshot, heroSticky: StickyNote?) async {}
+
+    public func animatePreparedPresentation() async {}
 }
 
 #if canImport(AppKit)
@@ -22,15 +36,17 @@ public actor AppKitZoomOutOverviewPresenter: ZoomOutOverviewPresenting {
     public init() {}
 
     public func present(snapshot: CanvasSnapshot, heroSticky: StickyNote?) async {
-        let controller = await MainActor.run { () -> ZoomOutOverviewWindowController in
-            if let existing = Self.controller {
-                return existing
-            }
-            let created = ZoomOutOverviewWindowController()
-            Self.controller = created
-            return created
-        }
+        await preparePresentation(snapshot: snapshot, heroSticky: heroSticky)
+        await animatePreparedPresentation()
+    }
+
+    public func preparePresentation(snapshot: CanvasSnapshot, heroSticky: StickyNote?) async {
+        let controller = await resolveController()
         await controller.prepare(snapshot: snapshot, heroSticky: heroSticky)
+    }
+
+    public func animatePreparedPresentation() async {
+        let controller = await resolveController()
         await controller.animateZoomOut()
     }
 
@@ -38,6 +54,16 @@ public actor AppKitZoomOutOverviewPresenter: ZoomOutOverviewPresenting {
         await MainActor.run {
             Self.controller?.hide()
         }
+    }
+
+    @MainActor
+    private func resolveController() -> ZoomOutOverviewWindowController {
+        if let existing = Self.controller {
+            return existing
+        }
+        let created = ZoomOutOverviewWindowController()
+        Self.controller = created
+        return created
     }
 }
 
@@ -82,6 +108,8 @@ private final class ZoomOutOverviewWindowController {
 
         panel.alphaValue = 1
         panel.orderFrontRegardless()
+        panel.contentView?.displayIfNeeded()
+        panel.displayIfNeeded()
         NSApplication.shared.setActivationPolicy(.regular)
         NSApplication.shared.activate(ignoringOtherApps: true)
     }
@@ -244,6 +272,10 @@ public actor AppKitZoomOutOverviewPresenter: ZoomOutOverviewPresenting {
     public init() {}
 
     public func present(snapshot: CanvasSnapshot, heroSticky: StickyNote?) async {}
+
+    public func preparePresentation(snapshot: CanvasSnapshot, heroSticky: StickyNote?) async {}
+
+    public func animatePreparedPresentation() async {}
 
     public func hide() async {}
 }

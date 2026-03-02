@@ -1,4 +1,5 @@
 import Foundation
+import StickySpacesShared
 
 public enum MarkerKind: String, Sendable {
     case actionsStart
@@ -19,6 +20,14 @@ public struct MarkerParser: Sendable {
     public init() {}
 
     public func parse(line: String) -> MarkerEvent? {
+        if let lifecycleEvent = AutomationLifecycleWireCodec.parseLine(line) {
+            switch lifecycleEvent.phase {
+            case .scenarioActionsStart:
+                return MarkerEvent(kind: .actionsStart, scenarioID: lifecycleEvent.scenarioID)
+            case .scenarioActionsComplete:
+                return MarkerEvent(kind: .actionsComplete, scenarioID: lifecycleEvent.scenarioID)
+            }
+        }
         if let scenarioID = parseScenarioID(in: line, prefix: CaptureContract.markerStartPrefix) {
             return MarkerEvent(kind: .actionsStart, scenarioID: scenarioID)
         }

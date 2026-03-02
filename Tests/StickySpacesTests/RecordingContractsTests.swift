@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 @testable import StickySpacesCapture
+@testable import StickySpacesShared
 
 @Suite("Recording contracts")
 struct RecordingContractsTests {
@@ -8,6 +9,7 @@ struct RecordingContractsTests {
     func markerTokensAndOutputExtensionStayStable() {
         #expect(CaptureContract.markerStartPrefix == "SCENARIO_ACTIONS_START scenario=")
         #expect(CaptureContract.markerCompletePrefix == "SCENARIO_ACTIONS_COMPLETE scenario=")
+        #expect(AutomationLifecycleWireCodec.linePrefix == "STICKYSPACES_AUTOMATION_EVENT ")
         #expect(CaptureContract.outputFileExtension == "mov")
     }
 

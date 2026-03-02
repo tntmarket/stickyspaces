@@ -1,74 +1,41 @@
-# UI E2E Demo Collection
+# UI E2E Coverage
 
-This project includes a visible AppKit-based demo runner that records one video per use-case scenario.
+The project now uses Swift tests as the only supported E2E/demo validation workflow.
 
-## Quick Start
+## Primary Commands
 
-Record one FR demo:
-
-```bash
-scripts/record-ui-demo.sh create-sticky-current-workspace auto
-```
-
-Record the full FR collection:
+Run the full test suite:
 
 ```bash
-scripts/record-all-fr-demos.sh auto
+swift test
 ```
 
-Record + analyze + generate an HTML feedback report in one step:
+Run the E2E-oriented integration subset:
 
 ```bash
-scripts/record-and-review-fr-demos.sh auto
+scripts/run-e2e.sh
 ```
 
-Videos are written to:
-
-- `artifacts/ui-demos/<scenario-id>/<scenario-id>.mov`
-- `artifacts/ui-demos/<scenario-id>/<scenario-id>.inspect.mp4`
-- `artifacts/ui-demos/<scenario-id>/<scenario-id>.diagnostics.json`
-
-Each rerun overwrites assets for that scenario path.
-
-Analysis output is written to:
-
-- `artifacts/ui-demos/<scenario-id>/review/`
-- `artifacts/ui-demos/review/index.html`
-
-## Scenario Map
-
-- `create-sticky-current-workspace` — Create sticky on current workspace
-- `workspace-switch-shows-associated-stickies` — Workspace switch visibility behavior
-- `edit-sticky-text-in-place` — Edit sticky text in place
-- `move-and-resize-sticky` — Move + resize sticky
-- `multiple-stickies-per-workspace` — Multiple stickies per workspace
-- `dismiss-sticky` — Dismiss a sticky
-- `zoom-out-canvas-overview` — Zoom-out canvas overview
-- `navigate-by-sticky-selection` — Navigate by sticky selection
-- `arrange-workspace-regions` — Arrange workspace regions
-- `highlight-active-workspace-in-overview` — Active workspace highlight in zoom-out
-- `remove-stickies-for-destroyed-workspace` — Workspace-destroyed visibility removal + confirmation deletion
-
-## Notes
-
-- Recording uses `stickyspaces-ui-recorder` with a ScreenCaptureKit-first backend.
-- Backend selection:
-  - `CAPTURE_BACKEND=auto` (default): try ScreenCaptureKit, fallback to `screencapture`.
-  - `CAPTURE_BACKEND=sckit`: require ScreenCaptureKit.
-  - `CAPTURE_BACKEND=screencapture`: force legacy recorder.
-- First run may prompt for Screen Recording permissions.
-- Frame extraction/reporting uses `ffmpeg`/`ffprobe`.
-- Use the optional display argument if you need a non-main monitor:
+Run the screen recorder integration suite (quick path):
 
 ```bash
-scripts/record-ui-demo.sh create-sticky-current-workspace auto 1 artifacts/ui-demos 2
+swift test --filter ScreenRecorderIntegrationTests
 ```
 
-Quick analyze-only loop for existing videos:
+Run the headed/video-backed recorder integration path:
 
 ```bash
-for f in artifacts/ui-demos/*/*.mov; do
-  scripts/analyze-ui-demo.py --video "$f"
-done
-scripts/report-ui-demos.py
+STICKYSPACES_RUN_SCREEN_RECORDING_TESTS=1 swift test --filter ScreenRecorderIntegrationTests
 ```
+
+## Architecture Boundary
+
+- Canonical automation surface lives in app code (`StickySpacesAutomationAPI` in `StickySpacesApp`).
+- `stickyspaces` CLI is a thin adapter over the canonical automation API.
+- Recorder lifecycle sync supports typed events (`STICKYSPACES_AUTOMATION_EVENT ...`) with legacy marker fallback.
+
+## Artifacts
+
+When video-backed tests are enabled, integration videos are written under:
+
+- `artifacts/ui-demos/integration-*/<scenario>/<scenario>.mov`

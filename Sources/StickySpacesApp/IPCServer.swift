@@ -1,4 +1,3 @@
-import CoreGraphics
 import Foundation
 import StickySpacesShared
 
@@ -7,9 +6,11 @@ public actor IPCServer {
     public static let minSupportedClientVersion = 0
 
     private let manager: StickyManager
+    private let automation: StickySpacesAutomationAPI
 
-    public init(manager: StickyManager) {
+    public init(manager: StickyManager, automation: StickySpacesAutomationAPI? = nil) {
         self.manager = manager
+        self.automation = automation ?? StickySpacesAutomationAPI(manager: manager)
     }
 
     public func handleLine(_ line: String) async -> String {
@@ -43,7 +44,10 @@ public actor IPCServer {
             )
         case .new(let text):
             do {
-                let created = try await manager.createSticky(text: text ?? "")
+                let response = try await automation.perform(.createSticky(text: text))
+                guard case .created(let created) = response else {
+                    return .error("cannot create sticky")
+                }
                 return .created(id: created.sticky.id, workspaceID: created.sticky.workspaceID)
             } catch StickyManagerError.workspaceTransitioning(let details) {
                 return .workspaceTransitioning(details)
@@ -54,49 +58,52 @@ public actor IPCServer {
             }
         case .edit(let id, let text):
             do {
-                try await manager.updateStickyText(id: id, text: text)
+                _ = try await automation.perform(.editSticky(id: id, text: text))
                 return .ok
             } catch {
                 return .error("sticky not found")
             }
         case .dismiss(let id):
             do {
-                try await manager.dismissSticky(id: id)
+                _ = try await automation.perform(.dismissSticky(id: id))
                 return .ok
             } catch {
                 return .error("sticky not found")
             }
         case .dismissAll:
             do {
-                try await manager.dismissAllStickiesOnCurrentWorkspace()
+                _ = try await automation.perform(.dismissAllCurrentWorkspace)
                 return .ok
             } catch {
                 return .error("cannot dismiss-all")
             }
         case .move(let id, let x, let y):
             do {
-                try await manager.updateStickyPosition(id: id, x: x, y: y)
+                _ = try await automation.perform(.moveSticky(id: id, x: x, y: y))
                 return .ok
             } catch {
                 return .error("sticky not found")
             }
         case .resize(let id, let width, let height):
             do {
-                try await manager.updateStickySize(id: id, width: width, height: height)
+                _ = try await automation.perform(.resizeSticky(id: id, width: width, height: height))
                 return .ok
             } catch {
                 return .error("sticky not found")
             }
         case .zoomOut:
             do {
-                let snapshot = try await manager.zoomOutSnapshot()
+                let response = try await automation.perform(.zoomOutSnapshot)
+                guard case .canvasSnapshot(let snapshot) = response else {
+                    return .error("cannot zoom-out")
+                }
                 return .canvasSnapshot(snapshot)
             } catch {
                 return .error("cannot zoom-out")
             }
         case .zoomIn(let workspaceID):
             do {
-                try await manager.zoomIn(workspaceID: workspaceID)
+                _ = try await automation.perform(.zoomIn(workspaceID: workspaceID))
                 return .ok
             } catch StickyManagerError.unsupportedMode(let details) {
                 return .unsupportedMode(details)
@@ -105,7 +112,7 @@ public actor IPCServer {
             }
         case .navigateFromCanvasClick(let stickyID):
             do {
-                try await manager.navigateFromCanvasClick(stickyID: stickyID)
+                _ = try await automation.perform(.navigateFromCanvasClick(stickyID: stickyID))
                 return .ok
             } catch StickyManagerError.unsupportedMode(let details) {
                 return .unsupportedMode(details)
@@ -113,31 +120,58 @@ public actor IPCServer {
                 return .error("cannot navigate from canvas")
             }
         case .list(let space):
-            let notes = await manager.list(space: space)
-            return .stickyList(notes)
+            do {
+                let response = try await automation.perform(.listStickies(space: space))
+                guard case .stickyList(let notes) = response else {
+                    return .error("cannot list stickies")
+                }
+                return .stickyList(notes)
+            } catch {
+                return .error("cannot list stickies")
+            }
         case .get(let id):
             do {
-                let note = try await manager.getSticky(id: id)
+                let response = try await automation.perform(.getSticky(id: id))
+                guard case .sticky(let note) = response else {
+                    return .error("sticky not found")
+                }
                 return .sticky(note)
             } catch {
                 return .error("sticky not found")
             }
         case .canvasLayout:
             do {
-                let layout = try await manager.canvasLayout()
+                let response = try await automation.perform(.canvasLayout)
+                guard case .canvasLayout(let layout) = response else {
+                    return .error("cannot read canvas-layout")
+                }
                 return .canvasLayout(layout)
             } catch {
                 return .error("cannot read canvas-layout")
             }
         case .moveRegion(let workspaceID, let x, let y):
-            await manager.setWorkspacePosition(workspaceID, position: CGPoint(x: x, y: y))
-            return .ok
+            do {
+                _ = try await automation.perform(.moveWorkspaceRegion(workspaceID: workspaceID, x: x, y: y))
+                return .ok
+            } catch {
+                return .error("cannot move region")
+            }
         case .status:
-            let snapshot = await manager.status()
-            return .status(snapshot)
+            do {
+                let response = try await automation.perform(.status)
+                guard case .status(let snapshot) = response else {
+                    return .error("cannot read status")
+                }
+                return .status(snapshot)
+            } catch {
+                return .error("cannot read status")
+            }
         case .verifySync:
             do {
-                let sync = try await manager.verifySync()
+                let response = try await automation.perform(.verifySync)
+                guard case .verifySync(let sync) = response else {
+                    return .error("cannot verify-sync")
+                }
                 return .syncResult(synced: sync.synced, mismatches: sync.mismatches)
             } catch {
                 return .syncResult(

@@ -1,9 +1,43 @@
 import Foundation
 import Testing
+@testable import StickySpacesApp
+@testable import StickySpacesClient
 @testable import StickySpacesCLI
+@testable import StickySpacesShared
 
 @Suite("CLI commands")
 struct CLITests {
+    @Test("CLI delegates parsed command to canonical automation API")
+    func cliDelegatesParsedCommandToCanonicalAutomationAPI() async throws {
+        let spy = SpyAutomation(
+            responses: [
+                .status(
+                    StatusSnapshot(
+                        running: true,
+                        space: WorkspaceID(rawValue: 1),
+                        stickyCount: 2,
+                        mode: .normal,
+                        warnings: [],
+                        panelVisibilityStrategy: .automaticPrimary
+                    )
+                )
+            ]
+        )
+        let app = DemoApp(
+            automation: spy,
+            client: StickySpacesClient(
+                transport: ClosureTransport { _ in
+                    throw StickySpacesClientError.serverError("client transport should not be used")
+                }
+            )
+        )
+
+        let output = try await StickySpacesCLICommandRunner.run(args: ["status"], app: app)
+
+        #expect(output.contains("mode: normal"))
+        #expect(await spy.recordedCommands() == [.status])
+    }
+
     @Test("new, list, status, verify-sync return useful output")
     func newListStatusVerifySync() async throws {
         let app = DemoAppFactory.makeReady()
@@ -187,5 +221,30 @@ struct CLITests {
         #expect(first.contains("workspace 1"))
         #expect(first.contains("(640.0,320.0)"))
         #expect(first == second)
+    }
+}
+
+private actor SpyAutomation: StickySpacesAutomating {
+    private var responses: [StickySpacesAutomationResponse]
+    private var commands: [StickySpacesAutomationCommand] = []
+
+    init(responses: [StickySpacesAutomationResponse]) {
+        self.responses = responses
+    }
+
+    func perform(_ command: StickySpacesAutomationCommand) async throws -> StickySpacesAutomationResponse {
+        commands.append(command)
+        if responses.isEmpty {
+            return .ok
+        }
+        return responses.removeFirst()
+    }
+
+    func beginScenarioActions(_ scenarioID: String) async {}
+
+    func completeScenarioActions(_ scenarioID: String) async {}
+
+    func recordedCommands() -> [StickySpacesAutomationCommand] {
+        commands
     }
 }

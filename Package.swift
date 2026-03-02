@@ -11,9 +11,7 @@ let package = Package(
         .library(name: "StickySpacesApp", targets: ["StickySpacesApp"]),
         .library(name: "StickySpacesClient", targets: ["StickySpacesClient"]),
         .library(name: "StickySpacesCapture", targets: ["StickySpacesCapture"]),
-        .executable(name: "stickyspaces", targets: ["StickySpacesCLI"]),
-        .executable(name: "stickyspaces-ui-e2e", targets: ["StickySpacesUIE2E"]),
-        .executable(name: "stickyspaces-ui-recorder", targets: ["StickySpacesUIRecorder"])
+        .executable(name: "stickyspaces", targets: ["StickySpacesCLI"])
     ],
     dependencies: [
         .package(url: "https://github.com/apple/swift-testing.git", branch: "main")
@@ -31,19 +29,12 @@ let package = Package(
             dependencies: ["StickySpacesShared"]
         ),
         .target(
-            name: "StickySpacesCapture"
+            name: "StickySpacesCapture",
+            dependencies: ["StickySpacesShared"]
         ),
         .executableTarget(
             name: "StickySpacesCLI",
             dependencies: ["StickySpacesApp", "StickySpacesClient", "StickySpacesShared"]
-        ),
-        .executableTarget(
-            name: "StickySpacesUIRecorder",
-            dependencies: ["StickySpacesCapture"]
-        ),
-        .executableTarget(
-            name: "StickySpacesUIE2E",
-            dependencies: ["StickySpacesApp", "StickySpacesShared"]
         ),
         .testTarget(
             name: "StickySpacesTests",
@@ -52,7 +43,6 @@ let package = Package(
                 "StickySpacesClient",
                 "StickySpacesCLI",
                 "StickySpacesCapture",
-                "StickySpacesUIRecorder",
                 "StickySpacesShared",
                 .product(name: "Testing", package: "swift-testing")
             ]

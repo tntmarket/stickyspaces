@@ -4,38 +4,50 @@ import StickySpacesClient
 import StickySpacesShared
 
 public struct DemoApp {
+    public let automation: any StickySpacesAutomating
     public let client: StickySpacesClient
 
-    public init(client: StickySpacesClient) {
+    public init(automation: any StickySpacesAutomating, client: StickySpacesClient) {
+        self.automation = automation
         self.client = client
     }
 }
 
 public enum DemoAppFactory {
     public static func makeReady(workspaceID: WorkspaceID = WorkspaceID(rawValue: 1)) -> DemoApp {
+        let panelSync = InMemoryPanelSync()
         let manager = StickyManager(
             store: StickyStore(),
             yabai: FakeYabaiQuerying(currentSpace: workspaceID),
-            panelSync: InMemoryPanelSync()
+            panelSync: panelSync
         )
+        let automation = StickySpacesAutomationAPI(manager: manager, panelSync: panelSync)
         let server = IPCServer(manager: manager)
         let transport = ClosureTransport { line in
             await server.handleLine(line)
         }
-        return DemoApp(client: StickySpacesClient(transport: transport))
+        return DemoApp(
+            automation: automation,
+            client: StickySpacesClient(transport: transport)
+        )
     }
 
     public static func makeWithUnavailableYabai() -> DemoApp {
+        let panelSync = InMemoryPanelSync()
         let manager = StickyManager(
             store: StickyStore(),
             yabai: FakeYabaiQuerying(currentSpace: nil),
-            panelSync: InMemoryPanelSync()
+            panelSync: panelSync
         )
+        let automation = StickySpacesAutomationAPI(manager: manager, panelSync: panelSync)
         let server = IPCServer(manager: manager)
         let transport = ClosureTransport { line in
             await server.handleLine(line)
         }
-        return DemoApp(client: StickySpacesClient(transport: transport))
+        return DemoApp(
+            automation: automation,
+            client: StickySpacesClient(transport: transport)
+        )
     }
 }
 
@@ -48,23 +60,23 @@ public enum StickySpacesCLICommandRunner {
         switch command {
         case "new":
             let text = parseOption("--text", in: args)
-            let created = try await app.client.new(text: text)
-            return "created id: \(created.id) workspace: \(created.workspaceID.rawValue)"
+            let created = try await createSticky(text: text, automation: app.automation)
+            return "created id: \(created.sticky.id) workspace: \(created.sticky.workspaceID.rawValue)"
         case "edit":
             guard args.count >= 2, let id = UUID(uuidString: args[1]) else {
                 return "usage: stickyspaces edit <id> --text TEXT"
             }
             let text = parseOption("--text", in: args) ?? ""
-            try await app.client.edit(id: id, text: text)
+            _ = try await app.automation.perform(.editSticky(id: id, text: text))
             return "edited id: \(id)"
         case "dismiss":
             guard args.count >= 2, let id = UUID(uuidString: args[1]) else {
                 return "usage: stickyspaces dismiss <id>"
             }
-            try await app.client.dismiss(id: id)
+            _ = try await app.automation.perform(.dismissSticky(id: id))
             return "dismissed id: \(id)"
         case "dismiss-all":
-            try await app.client.dismissAll()
+            _ = try await app.automation.perform(.dismissAllCurrentWorkspace)
             return "dismissed all"
         case "move":
             guard args.count >= 2, let id = UUID(uuidString: args[1]) else {
@@ -76,7 +88,7 @@ public enum StickySpacesCLICommandRunner {
             else {
                 return "usage: stickyspaces move <id> --x X --y Y"
             }
-            try await app.client.move(id: id, x: x, y: y)
+            _ = try await app.automation.perform(.moveSticky(id: id, x: x, y: y))
             return "moved id: \(id)"
         case "resize":
             guard args.count >= 2, let id = UUID(uuidString: args[1]) else {
@@ -88,10 +100,10 @@ public enum StickySpacesCLICommandRunner {
             else {
                 return "usage: stickyspaces resize <id> --width W --height H"
             }
-            try await app.client.resize(id: id, width: width, height: height)
+            _ = try await app.automation.perform(.resizeSticky(id: id, width: width, height: height))
             return "resized id: \(id)"
         case "zoom-out":
-            let snapshot = try await app.client.zoomOut()
+            let snapshot = try await zoomOutSnapshot(automation: app.automation)
             let regionSummary = snapshot.regions
                 .map { region in
                     let activeFlag = region.isActive ? "*" : "-"
@@ -106,10 +118,10 @@ public enum StickySpacesCLICommandRunner {
             guard let rawSpace = parseIntOption("--space", in: args) else {
                 return "usage: stickyspaces zoom-in --space N"
             }
-            try await app.client.zoomIn(space: WorkspaceID(rawValue: rawSpace))
+            _ = try await app.automation.perform(.zoomIn(workspaceID: WorkspaceID(rawValue: rawSpace)))
             return "zoomed-in workspace: \(rawSpace)"
         case "list":
-            let notes = try await app.client.list(space: nil)
+            let notes = try await listStickies(space: nil, automation: app.automation)
             if notes.isEmpty {
                 return "no stickies"
             }
@@ -120,10 +132,10 @@ public enum StickySpacesCLICommandRunner {
             guard args.count >= 2, let id = UUID(uuidString: args[1]) else {
                 return "usage: stickyspaces get <id>"
             }
-            let note = try await app.client.get(id: id)
+            let note = try await getSticky(id: id, automation: app.automation)
             return "id: \(note.id) workspace: \(note.workspaceID.rawValue) text: \(note.text) position: (\(note.position.x), \(note.position.y)) size: (\(note.size.width), \(note.size.height))"
         case "canvas-layout":
-            let layout = try await app.client.canvasLayout()
+            let layout = try await canvasLayout(automation: app.automation)
             let lines = layout.workspacePositions.keys
                 .sorted { $0.rawValue < $1.rawValue }
                 .map { workspaceID in
@@ -140,13 +152,19 @@ public enum StickySpacesCLICommandRunner {
             else {
                 return "usage: stickyspaces move-region --space N --x X --y Y"
             }
-            try await app.client.moveRegion(space: WorkspaceID(rawValue: rawSpace), x: x, y: y)
+            _ = try await app.automation.perform(
+                .moveWorkspaceRegion(
+                    workspaceID: WorkspaceID(rawValue: rawSpace),
+                    x: x,
+                    y: y
+                )
+            )
             return "moved region for workspace \(rawSpace)"
         case "status":
-            let status = try await app.client.status()
+            let status = try await runtimeStatus(automation: app.automation)
             return "running: \(status.running) mode: \(status.mode.rawValue) space: \(status.space?.rawValue.description ?? "none") count: \(status.stickyCount) warnings: \(status.warnings.joined(separator: ",")) panel: \(status.panelVisibilityStrategy.rawValue)"
         case "verify-sync":
-            let result = try await app.client.verifySync()
+            let result = try await verifySync(automation: app.automation)
             return "synced: \(result.synced) mismatches: \(result.mismatches.joined(separator: ";"))"
         default:
             return usage()
@@ -174,6 +192,79 @@ public enum StickySpacesCLICommandRunner {
         return Int(raw)
     }
 
+    private static func createSticky(
+        text: String?,
+        automation: any StickySpacesAutomating
+    ) async throws -> StickyCreateResult {
+        let response = try await automation.perform(.createSticky(text: text))
+        guard case .created(let created) = response else {
+            throw CLICommandError.unexpectedResponse(command: "new", response: response)
+        }
+        return created
+    }
+
+    private static func listStickies(
+        space: WorkspaceID?,
+        automation: any StickySpacesAutomating
+    ) async throws -> [StickyNote] {
+        let response = try await automation.perform(.listStickies(space: space))
+        guard case .stickyList(let notes) = response else {
+            throw CLICommandError.unexpectedResponse(command: "list", response: response)
+        }
+        return notes
+    }
+
+    private static func getSticky(
+        id: UUID,
+        automation: any StickySpacesAutomating
+    ) async throws -> StickyNote {
+        let response = try await automation.perform(.getSticky(id: id))
+        guard case .sticky(let note) = response else {
+            throw CLICommandError.unexpectedResponse(command: "get", response: response)
+        }
+        return note
+    }
+
+    private static func zoomOutSnapshot(
+        automation: any StickySpacesAutomating
+    ) async throws -> CanvasSnapshot {
+        let response = try await automation.perform(.zoomOutSnapshot)
+        guard case .canvasSnapshot(let snapshot) = response else {
+            throw CLICommandError.unexpectedResponse(command: "zoom-out", response: response)
+        }
+        return snapshot
+    }
+
+    private static func canvasLayout(
+        automation: any StickySpacesAutomating
+    ) async throws -> CanvasLayout {
+        let response = try await automation.perform(.canvasLayout)
+        guard case .canvasLayout(let layout) = response else {
+            throw CLICommandError.unexpectedResponse(command: "canvas-layout", response: response)
+        }
+        return layout
+    }
+
+    private static func runtimeStatus(
+        automation: any StickySpacesAutomating
+    ) async throws -> StatusSnapshot {
+        let response = try await automation.perform(.status)
+        guard case .status(let status) = response else {
+            throw CLICommandError.unexpectedResponse(command: "status", response: response)
+        }
+        return status
+    }
+
+    private static func verifySync(
+        automation: any StickySpacesAutomating
+    ) async throws -> VerifySyncResult {
+        let response = try await automation.perform(.verifySync)
+        guard case .verifySync(let result) = response else {
+            throw CLICommandError.unexpectedResponse(command: "verify-sync", response: response)
+        }
+        return result
+    }
+
     private static func usage() -> String {
         """
         stickyspaces commands:
@@ -193,4 +284,8 @@ public enum StickySpacesCLICommandRunner {
           verify-sync
         """
     }
+}
+
+private enum CLICommandError: Error {
+    case unexpectedResponse(command: String, response: StickySpacesAutomationResponse)
 }

@@ -1,16 +1,19 @@
 import Foundation
 import Testing
 @testable import StickySpacesCapture
+@testable import StickySpacesShared
 
 @Suite("RecordingSessionCoordinator")
 struct RecordingSessionCoordinatorTests {
     @Test("stops capture at completion marker plus tail")
     func stopsCaptureAtCompletionMarkerPlusTail() async throws {
         let outputURL = temporaryOutputURL(name: "coordinator-tail.mov")
+        let startLine = try automationLifecycleLine(phase: .scenarioActionsStart, scenarioID: "fr-7")
+        let completeLine = try automationLifecycleLine(phase: .scenarioActionsComplete, scenarioID: "fr-7")
         let runner = FakeRunnerOutput(
             lines: [
-                "SCENARIO_ACTIONS_START scenario=fr-7",
-                "SCENARIO_ACTIONS_COMPLETE scenario=fr-7"
+                startLine,
+                completeLine
             ]
         )
         let recorder = FakeCaptureBackend(kind: .screenCaptureKit)
@@ -65,4 +68,14 @@ struct RecordingSessionCoordinatorTests {
 
     @Test("propagates runner failure even when capture succeeds")
     func propagatesRunnerFailureEvenWhenCaptureSucceeds() async throws {}
+}
+
+private func automationLifecycleLine(
+    phase: AutomationLifecyclePhase,
+    scenarioID: String
+) throws -> String {
+    let encoded = try AutomationLifecycleWireCodec.encodeLine(
+        AutomationLifecycleEvent(phase: phase, scenarioID: scenarioID)
+    )
+    return encoded.trimmingCharacters(in: .newlines)
 }

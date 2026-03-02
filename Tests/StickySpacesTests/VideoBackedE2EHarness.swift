@@ -71,9 +71,9 @@ actor VideoBackedE2EHarness {
     private let workspace2 = WorkspaceID(rawValue: 2)
     private let workspace3 = WorkspaceID(rawValue: 3)
 
-    private let manager: StickyManager
-    private let panelSync: AppKitPanelSync
-    private let yabai: FakeYabaiQuerying
+    private let automation: StickySpacesAutomationAPI
+    private let debug: StickySpacesAutomationDebugAPI
+    private let presenter: AppKitZoomOutOverviewPresenter
     private var activeBackend: CaptureBackend?
 
     init(outputURL: URL, backendMode: CaptureBackendMode) async throws {
@@ -94,12 +94,22 @@ actor VideoBackedE2EHarness {
         )
         await yabai.setCurrentBinding(.stable(workspaceID: workspace1, displayID: 1, isPrimaryDisplay: true))
 
-        self.panelSync = panelSync
-        self.yabai = yabai
-        self.manager = StickyManager(
+        let manager = StickyManager(
             store: StickyStore(),
             yabai: yabai,
             panelSync: panelSync
+        )
+        let presenter = AppKitZoomOutOverviewPresenter()
+        self.presenter = presenter
+        self.automation = StickySpacesAutomationAPI(
+            manager: manager,
+            panelSync: panelSync,
+            zoomOutPresenter: presenter
+        )
+        self.debug = StickySpacesAutomationDebugAPI(
+            manager: manager,
+            panelSync: panelSync,
+            yabai: yabai
         )
     }
 
@@ -129,17 +139,24 @@ actor VideoBackedE2EHarness {
         switch step {
         case .switchWorkspace(let workspace):
             let workspaceID = WorkspaceID(rawValue: max(1, workspace))
-            await yabai.setCurrentBinding(.stable(workspaceID: workspaceID, displayID: 1, isPrimaryDisplay: true))
+            await debug.setCurrentBinding(.stable(workspaceID: workspaceID, displayID: 1, isPrimaryDisplay: true))
             return .none
         case .createSticky(let text, let x, let y):
-            let created = try await manager.createSticky(text: text)
-            try await manager.updateStickyPosition(id: created.sticky.id, x: x, y: y)
+            let createdResponse = try await automation.perform(.createSticky(text: text))
+            guard case .created(let created) = createdResponse else {
+                throw HarnessError.unexpectedResponse("createSticky")
+            }
+            _ = try await automation.perform(.moveSticky(id: created.sticky.id, x: x, y: y))
             return .sticky(created.sticky)
         case .wait(let milliseconds):
             try? await Task.sleep(for: .milliseconds(max(0, milliseconds)))
             return .none
         case .zoomOut:
-            return .snapshot(try await manager.zoomOutSnapshot())
+            let response = try await automation.perform(.presentZoomOutOverview)
+            guard case .canvasSnapshot(let snapshot) = response else {
+                throw HarnessError.unexpectedResponse("presentZoomOutOverview")
+            }
+            return .snapshot(snapshot)
         }
     }
 
@@ -159,8 +176,11 @@ actor VideoBackedE2EHarness {
             _ = try? await activeBackend.waitUntilFinished()
             self.activeBackend = nil
         }
-        await panelSync.hideAll(on: workspace1)
-        await panelSync.hideAll(on: workspace2)
-        await panelSync.hideAll(on: workspace3)
+        await debug.hideAllVisiblePanels()
+        await presenter.hide()
     }
+}
+
+private enum HarnessError: Error {
+    case unexpectedResponse(String)
 }

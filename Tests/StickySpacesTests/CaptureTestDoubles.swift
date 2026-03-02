@@ -17,9 +17,10 @@ actor FakeRunnerOutput: RunnerProcess {
 
     func start(onLine: @escaping @Sendable (String) -> Void) async throws {
         Task {
+            let parser = MarkerParser()
             for line in lines {
                 onLine(line)
-                if line.contains(CaptureContract.markerCompletePrefix) {
+                if parser.parse(line: line)?.kind == .actionsComplete {
                     markCompletionMarkerDate()
                 }
                 try? await Task.sleep(nanoseconds: lineDelayNanoseconds)

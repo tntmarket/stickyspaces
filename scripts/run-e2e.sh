@@ -11,7 +11,7 @@ if [[ "${1:-}" == "--all" ]]; then
 fi
 
 echo "Running E2E-oriented integration suites..."
-echo "(headless/in-memory; for visible windows use scripts/run-ui-e2e.sh)"
+echo "(headless/in-memory integration focus)"
 echo " - CLITests"
 swift test --filter CLITests
 

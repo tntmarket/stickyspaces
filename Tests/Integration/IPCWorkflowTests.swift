@@ -3,9 +3,9 @@ import Testing
 @testable import StickySpacesApp
 @testable import StickySpacesShared
 
-@Suite("IPC text protocol")
-struct IPCRoutingTests {
-    @Test("routes new/list over newline-delimited JSON")
+@Suite("IPC workflows from a client perspective")
+struct IPCWorkflowTests {
+    @Test("client creates then lists a sticky over newline-delimited JSON")
     func routesNewListOverTextProtocol() async throws {
         let manager = StickyManager(
             store: StickyStore(),
@@ -21,7 +21,7 @@ struct IPCRoutingTests {
         #expect(listed[0].workspaceID == WorkspaceID(rawValue: 3))
     }
 
-    @Test("client edit updates sticky text over IPC")
+    @Test("client edits a sticky and list returns updated text")
     func clientEditUpdatesStickyTextOverIPC() async throws {
         let manager = StickyManager(
             store: StickyStore(),
@@ -37,7 +37,7 @@ struct IPCRoutingTests {
         #expect(listed[0].text == "After")
     }
 
-    @Test("client move/resize/get round-trips deterministic geometry over IPC")
+    @Test("client moves and resizes a sticky, then get returns deterministic geometry")
     func clientMoveResizeGetRoundTripsDeterministicGeometryOverIPC() async throws {
         let manager = StickyManager(
             store: StickyStore(),
@@ -56,7 +56,7 @@ struct IPCRoutingTests {
         #expect(note.size.height == 210.5)
     }
 
-    @Test("integration: multiple visible stickies support dismiss and keep visibility in sync")
+    @Test("dismissing one visible sticky keeps list and panel visibility in sync")
     func multipleVisibleStickiesDismissKeepsVisibilityInSync() async throws {
         let workspace = WorkspaceID(rawValue: 5)
         let panelSync = InMemoryPanelSync()
@@ -83,7 +83,7 @@ struct IPCRoutingTests {
         #expect(visible.contains(third.id))
     }
 
-    @Test("zoom-out IPC includes sticky previews for intent panel")
+    @Test("zoom-out snapshot includes sticky previews for the intent panel")
     func zoomOutIncludesStickyPreviewsForIntentPanel() async throws {
         let workspace = WorkspaceID(rawValue: 3)
         let yabai = FakeYabaiQuerying(currentSpace: workspace)
@@ -100,7 +100,7 @@ struct IPCRoutingTests {
         )
         let server = IPCServer(manager: manager)
 
-        let text = "Ship FR-7 polish\n- verify timing\n- publish demo"
+        let text = "Ship overview polish\n- verify timing\n- publish demo"
         let created = try created(from: try await send(request: .new(text: text), to: server))
         try expectOK(try await send(request: .move(id: created.id, x: 120, y: 80), to: server))
         let snapshot = try canvasSnapshot(from: try await send(request: .zoomOut, to: server))
@@ -109,11 +109,11 @@ struct IPCRoutingTests {
 
         #expect(preview.id == created.id)
         #expect(preview.text == text)
-        #expect(preview.displayHeader == "Ship FR-7 polish")
+        #expect(preview.displayHeader == "Ship overview polish")
     }
 
-    @Test("test_navigateFromCanvas_clickSticky_switchesWorkspace")
-    func test_navigateFromCanvas_clickSticky_switchesWorkspace() async throws {
+    @Test("clicking a sticky in canvas navigation switches to that sticky workspace")
+    func navigateFromCanvasClickSwitchesWorkspace() async throws {
         let workspace1 = WorkspaceID(rawValue: 1)
         let workspace2 = WorkspaceID(rawValue: 2)
         let yabai = FakeYabaiQuerying(currentSpace: workspace1)

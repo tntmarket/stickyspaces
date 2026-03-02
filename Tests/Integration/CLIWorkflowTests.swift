@@ -4,11 +4,11 @@ import Testing
 @testable import StickySpacesCLI
 @testable import StickySpacesShared
 
-@Suite("CLI commands")
-struct CLITests {
-    @Test("CLI delegates parsed command to canonical automation API")
-    func cliDelegatesParsedCommandToCanonicalAutomationAPI() async throws {
-        let spy = SpyAutomation(
+@Suite("CLI workflows from a user perspective")
+struct CLIWorkflowTests {
+    @Test("user runs status and the CLI forwards the parsed command to automation")
+    func userRunsStatusAndCliForwardsCommandToAutomation() async throws {
+        let spy = AutomationSpy(
             responses: [
                 .status(
                     StatusSnapshot(
@@ -31,8 +31,8 @@ struct CLITests {
         #expect(await spy.recordedCommands() == [.status])
     }
 
-    @Test("new, list, status, verify-sync return useful output")
-    func newListStatusVerifySync() async throws {
+    @Test("user creates a sticky then sees it in list, status, and verify-sync output")
+    func userCreatesStickyThenSeesItAcrossListStatusAndVerifySync() async throws {
         let app = DemoAppFactory.makeReady()
 
         let newOutput = try await StickySpacesCLICommandRunner.run(
@@ -60,10 +60,10 @@ struct CLITests {
         #expect(verifyOutput.contains("synced: true"))
     }
 
-    @Test("test_editSticky_updatesText")
-    func test_editSticky_updatesText() async throws {
+    @Test("user edits a sticky and sees updated text in list output")
+    func userEditsStickyAndSeesUpdatedTextInListOutput() async throws {
         let app = DemoAppFactory.makeReady()
-        let created = try await createStickyResult(text: "Before", app: app)
+        let created = try await createSticky(text: "Before", app: app)
 
         let editOutput = try await StickySpacesCLICommandRunner.run(
             args: ["edit", created.sticky.id.uuidString, "--text", "After"],
@@ -78,10 +78,10 @@ struct CLITests {
         #expect(listOutput.contains("After"))
     }
 
-    @Test("test_moveSticky_updatesPosition")
-    func test_moveSticky_updatesPosition() async throws {
+    @Test("user moves a sticky and get shows the new position")
+    func userMovesStickyAndGetShowsUpdatedPosition() async throws {
         let app = DemoAppFactory.makeReady()
-        let created = try await createStickyResult(text: "Move me", app: app)
+        let created = try await createSticky(text: "Move me", app: app)
 
         let moveOutput = try await StickySpacesCLICommandRunner.run(
             args: ["move", created.sticky.id.uuidString, "--x", "101.25", "--y", "202.5"],
@@ -96,10 +96,10 @@ struct CLITests {
         #expect(getOutput.contains("position: (101.25, 202.5)"))
     }
 
-    @Test("resize and get round-trip deterministic values")
-    func resizeAndGetRoundTripDeterministicValues() async throws {
+    @Test("user resizes a sticky and get shows deterministic dimensions")
+    func userResizesStickyAndGetShowsDeterministicDimensions() async throws {
         let app = DemoAppFactory.makeReady()
-        let created = try await createStickyResult(text: "Resize me", app: app)
+        let created = try await createSticky(text: "Resize me", app: app)
 
         let resizeOutput = try await StickySpacesCLICommandRunner.run(
             args: ["resize", created.sticky.id.uuidString, "--width", "333.75", "--height", "222.5"],
@@ -114,12 +114,12 @@ struct CLITests {
         #expect(getOutput.contains("size: (333.75, 222.5)"))
     }
 
-    @Test("dismiss removes single sticky and dismiss-all clears remainder")
-    func dismissAndDismissAllCommands() async throws {
+    @Test("user dismisses one sticky and then clears the remaining stickies")
+    func userDismissesOneStickyAndThenDismissesRemainingStickies() async throws {
         let app = DemoAppFactory.makeReady()
-        let first = try await createStickyResult(text: "One", app: app)
-        _ = try await createStickyResult(text: "Two", app: app)
-        _ = try await createStickyResult(text: "Three", app: app)
+        let first = try await createSticky(text: "One", app: app)
+        _ = try await createSticky(text: "Two", app: app)
+        _ = try await createSticky(text: "Three", app: app)
 
         let dismissOutput = try await StickySpacesCLICommandRunner.run(
             args: ["dismiss", first.sticky.id.uuidString],
@@ -148,10 +148,10 @@ struct CLITests {
         #expect(listAfterDismissAll == "no stickies")
     }
 
-    @Test("zoom-out returns deterministic canvas snapshot metadata")
-    func zoomOutReturnsDeterministicSnapshotMetadata() async throws {
+    @Test("user zooms out twice and receives deterministic canvas snapshot metadata")
+    func userZoomsOutTwiceAndReceivesDeterministicCanvasSnapshotMetadata() async throws {
         let app = DemoAppFactory.makeReady()
-        _ = try await createStickyResult(text: "One", app: app)
+        _ = try await createSticky(text: "One", app: app)
 
         let first = try await StickySpacesCLICommandRunner.run(
             args: ["zoom-out"],
@@ -166,10 +166,10 @@ struct CLITests {
         #expect(first == second)
     }
 
-    @Test("test_zoomOut_showsCanvas")
-    func test_zoomOut_showsCanvas() async throws {
+    @Test("user zooms out and sees canvas context in output")
+    func userZoomsOutAndSeesCanvasContextInOutput() async throws {
         let app = DemoAppFactory.makeReady()
-        _ = try await createStickyResult(text: "One", app: app)
+        _ = try await createSticky(text: "One", app: app)
 
         let output = try await StickySpacesCLICommandRunner.run(
             args: ["zoom-out"],
@@ -180,8 +180,8 @@ struct CLITests {
         #expect(output.contains("workspace"))
     }
 
-    @Test("canvas-layout prints persisted workspace positions")
-    func canvasLayoutPrintsPersistedWorkspacePositions() async throws {
+    @Test("user requests canvas layout and sees workspace display positions")
+    func userRequestsCanvasLayoutAndSeesWorkspaceDisplayPositions() async throws {
         let app = DemoAppFactory.makeReady()
         let output = try await StickySpacesCLICommandRunner.run(
             args: ["canvas-layout"],
@@ -192,8 +192,8 @@ struct CLITests {
         #expect(output.contains("display"))
     }
 
-    @Test("test_canvasArrangementPersists")
-    func test_canvasArrangementPersists() async throws {
+    @Test("user moves a region and canvas layout persists across repeated reads")
+    func userMovesRegionAndCanvasLayoutPersistsAcrossRepeatedReads() async throws {
         let app = DemoAppFactory.makeReady()
 
         let moveRegionOutput = try await StickySpacesCLICommandRunner.run(
@@ -216,11 +216,11 @@ struct CLITests {
         #expect(first == second)
     }
 
-    private func createStickyResult(text: String, app: DemoApp) async throws -> StickyCreateResult {
+    private func createSticky(text: String, app: DemoApp) async throws -> StickyCreateResult {
         let response = try await app.automation.perform(.createSticky(text: text))
         guard case .created(let created) = response else {
             throw NSError(
-                domain: "CLITests",
+                domain: "CLIWorkflowTests",
                 code: 1,
                 userInfo: [NSLocalizedDescriptionKey: "expected createSticky to return .created"]
             )
@@ -229,7 +229,7 @@ struct CLITests {
     }
 }
 
-private actor SpyAutomation: StickySpacesAutomating {
+private actor AutomationSpy: StickySpacesAutomating {
     private var responses: [StickySpacesAutomationResponse]
     private var commands: [StickySpacesAutomationCommand] = []
 

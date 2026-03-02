@@ -3,9 +3,9 @@ import Testing
 @testable import VideoCaptureCore
 @testable import StickySpacesShared
 
-@Suite("RecordingSessionCoordinator")
-struct RecordingSessionCoordinatorTests {
-    @Test("stops capture at completion marker plus tail")
+@Suite("Recording session reliability")
+struct RecordingSessionReliabilityTests {
+    @Test("capture stops at completion marker plus configured tail")
     func stopsCaptureAtCompletionMarkerPlusTail() async throws {
         let outputURL = temporaryOutputURL(name: "coordinator-tail.mov")
         let startLine = try automationLifecycleLine(phase: .scenarioActionsStart, scenarioID: "fr-7")
@@ -57,16 +57,16 @@ struct RecordingSessionCoordinatorTests {
         }
     }
 
-    @Test("starts capture after timeout when start marker missing")
+    @Test("capture starts after timeout when start marker is missing")
     func startsCaptureAfterTimeoutWhenStartMarkerMissing() async throws {}
 
-    @Test("uses max duration fallback when completion marker missing")
+    @Test("max duration fallback stops capture when completion marker is missing")
     func usesMaxDurationFallbackWhenCompletionMarkerMissing() async throws {}
 
-    @Test("does not double stop when completion marker repeats")
+    @Test("repeated completion markers do not trigger a double stop")
     func doesNotDoubleStopWhenCompletionMarkerRepeats() async throws {}
 
-    @Test("propagates runner failure even when capture succeeds")
+    @Test("runner failures still propagate even when capture succeeds")
     func propagatesRunnerFailureEvenWhenCaptureSucceeds() async throws {}
 }
 

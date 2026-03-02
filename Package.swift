@@ -39,7 +39,8 @@ let package = Package(
                 "VideoCaptureCore",
                 "StickySpacesShared",
                 .product(name: "Testing", package: "swift-testing")
-            ]
+            ],
+            path: "Tests"
         )
     ]
 )

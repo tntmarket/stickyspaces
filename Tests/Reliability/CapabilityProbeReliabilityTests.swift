@@ -3,9 +3,9 @@ import Testing
 @testable import StickySpacesApp
 @testable import StickySpacesShared
 
-@Suite("Capability probe and degraded mode")
-struct CapabilityProbeTests {
-    @Test("status reports degraded mode when yabai unavailable")
+@Suite("Capability probe reliability and degraded mode")
+struct CapabilityProbeReliabilityTests {
+    @Test("status reports degraded mode when yabai is unavailable")
     func statusReportsDegradedMode() async throws {
         let manager = StickyManager(
             store: StickyStore(),

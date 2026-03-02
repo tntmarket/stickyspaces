@@ -2,8 +2,8 @@ import Foundation
 import Testing
 @testable import VideoCaptureCore
 
-@Suite("CaptureBackendSelector")
-struct CaptureBackendSelectorTests {
+@Suite("Capture backend selection reliability")
+struct CaptureBackendSelectionReliabilityTests {
     @Test("auto mode falls back to screencapture when ScreenCaptureKit start fails")
     func autoModeFallsBackToLegacyBackend() async throws {
         let primary = FakeCaptureBackend(kind: .screenCaptureKit, startError: CaptureError.permissionDenied)
@@ -33,9 +33,9 @@ struct CaptureBackendSelectorTests {
     @Test("forced ScreenCaptureKit mode fails without fallback")
     func forcedScreenCaptureKitModeFailsWithoutFallback() async throws {}
 
-    @Test("auto mode does not fallback when primary start succeeds")
+    @Test("auto mode keeps ScreenCaptureKit when primary start succeeds")
     func autoModeDoesNotFallbackWhenPrimaryStartSucceeds() async throws {}
 
-    @Test("reports permission denied with actionable remediation")
+    @Test("permission denied errors include actionable remediation")
     func reportsPermissionDeniedWithActionableRemediation() async throws {}
 }

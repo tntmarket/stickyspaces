@@ -2,10 +2,10 @@ import Foundation
 import Testing
 @testable import VideoCaptureCore
 
-@Suite("Screen recorder integration")
-struct ScreenRecorderIntegrationTests {
-    @Test("start recorder, create sticky, trigger zoom-out, end recorder")
-    func startRecorderCreateStickyTriggerZoomOutEndRecorder() async throws {
+@Suite("Screen recording journeys")
+struct ScreenRecorderJourneyTests {
+    @Test("user records a multi-workspace flow and zoom-out returns a canvas snapshot")
+    func userRecordsMultiWorkspaceFlowAndZoomOutReturnsCanvasSnapshot() async throws {
         guard VideoBackedScenarioSession.isEnabled else {
             return
         }

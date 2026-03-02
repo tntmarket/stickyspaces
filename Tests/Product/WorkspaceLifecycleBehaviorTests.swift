@@ -3,10 +3,10 @@ import Testing
 @testable import StickySpacesApp
 @testable import StickySpacesShared
 
-@Suite("Workspace lifecycle and mode handling")
-struct WorkspaceLifecycleTests {
-    @Test("test_stickiesFilteredByWorkspace")
-    func test_stickiesFilteredByWorkspace() async throws {
+@Suite("Workspace lifecycle and runtime mode behavior")
+struct WorkspaceLifecycleBehaviorTests {
+    @Test("Workspace view only shows stickies from that workspace")
+    func workspaceViewShowsOnlyItsStickies() async throws {
         let store = StickyStore()
         let workspace1 = WorkspaceID(rawValue: 1)
         let workspace2 = WorkspaceID(rawValue: 2)
@@ -21,8 +21,8 @@ struct WorkspaceLifecycleTests {
         #expect(onlyWorkspace1[0].text == "one")
     }
 
-    @Test("test_workspaceDestroyed_deletesAllStickies")
-    func test_workspaceDestroyed_deletesAllStickies() async throws {
+    @Test("Destroyed workspaces remove their stickies after confirmation")
+    func destroyedWorkspaceRemovesItsStickiesAfterConfirmation() async throws {
         let workspace1 = WorkspaceID(rawValue: 1)
         let workspace2 = WorkspaceID(rawValue: 2)
         let yabai = FakeYabaiQuerying(currentSpace: workspace1)
@@ -56,8 +56,8 @@ struct WorkspaceLifecycleTests {
         #expect(await manager.list(space: workspace2).count == 1)
     }
 
-    @Test("test_rapidWorkspaceSwitch_onlyFinalSpaceProcessed")
-    func test_rapidWorkspaceSwitch_onlyFinalSpaceProcessed() async throws {
+    @Test("Rapid workspace switching keeps only the latest topology snapshot")
+    func rapidWorkspaceSwitchingKeepsOnlyLatestSnapshot() async throws {
         let monitor = WorkspaceMonitor()
         let s1 = WorkspaceTopologySnapshot(
             spaces: [WorkspaceDescriptor(workspaceID: WorkspaceID(rawValue: 1), index: 1, displayID: 1)],
@@ -80,8 +80,8 @@ struct WorkspaceLifecycleTests {
         #expect(drained?.spaces.map(\.workspaceID) == [WorkspaceID(rawValue: 3)])
     }
 
-    @Test("test_topologyReconciler_singleAuthority_forDestroyedSpaces")
-    func test_topologyReconciler_singleAuthority_forDestroyedSpaces() async throws {
+    @Test("Topology reconciler confirms removal before reporting destroyed workspaces")
+    func topologyReconcilerConfirmsRemovalBeforeReportingDestroyedWorkspace() async throws {
         let reconciler = WorkspaceTopologyReconciler(confirmationInterval: 2)
         let workspace = WorkspaceID(rawValue: 7)
         let first = WorkspaceTopologySnapshot(
@@ -100,8 +100,8 @@ struct WorkspaceLifecycleTests {
         #expect(result3.confirmedRemoved == [workspace])
     }
 
-    @Test("test_topologyReconciler_requiresConfirmedRemoval_beforeDelete")
-    func test_topologyReconciler_requiresConfirmedRemoval_beforeDelete() async throws {
+    @Test("First missing snapshot marks workspace as suspected removal")
+    func firstMissingSnapshotMarksWorkspaceAsSuspectedRemoval() async throws {
         let reconciler = WorkspaceTopologyReconciler(confirmationInterval: 2)
         let workspace = WorkspaceID(rawValue: 19)
         let present = WorkspaceTopologySnapshot(
@@ -116,8 +116,8 @@ struct WorkspaceLifecycleTests {
         #expect(firstMissing.confirmedRemoved.isEmpty)
     }
 
-    @Test("test_workspaceIndexRenumbering_preservesWorkspaceIDBinding")
-    func test_workspaceIndexRenumbering_preservesWorkspaceIDBinding() async throws {
+    @Test("Workspace index renumbering preserves sticky workspace binding")
+    func workspaceIndexRenumberingPreservesStickyBinding() async throws {
         let workspace = WorkspaceID(rawValue: 111)
         let yabai = FakeYabaiQuerying(currentSpace: workspace)
         let manager = StickyManager(
@@ -144,8 +144,8 @@ struct WorkspaceLifecycleTests {
         #expect(notes[0].text == "bound")
     }
 
-    @Test("test_statusReportsRuntimeModeAndWarnings")
-    func test_statusReportsRuntimeModeAndWarnings() async throws {
+    @Test("Status reports runtime mode and guidance warnings")
+    func statusReportsRuntimeModeAndWarnings() async throws {
         let workspace = WorkspaceID(rawValue: 1)
         let yabai = FakeYabaiQuerying(currentSpace: workspace)
         await yabai.setTopologySnapshot(
@@ -169,8 +169,8 @@ struct WorkspaceLifecycleTests {
         #expect(status.panelVisibilityStrategy == .automaticPrimary)
     }
 
-    @Test("test_nonPrimaryDisplayCommand_returnsUnsupportedMode")
-    func test_nonPrimaryDisplayCommand_returnsUnsupportedMode() async throws {
+    @Test("Commands from a non-primary display return unsupported mode")
+    func nonPrimaryDisplayCommandsReturnUnsupportedMode() async throws {
         let workspace = WorkspaceID(rawValue: 1)
         let yabai = FakeYabaiQuerying(currentSpace: workspace)
         await yabai.setTopologySnapshot(
@@ -197,8 +197,8 @@ struct WorkspaceLifecycleTests {
         #expect(details.reason.contains("non-primary display"))
     }
 
-    @Test("status endpoint transitions from normal to single-display to degraded")
-    func statusEndpoint_reportsModeTransitions() async throws {
+    @Test("Status endpoint transitions from normal to single-display to degraded")
+    func statusEndpointReportsModeTransitions() async throws {
         let workspace = WorkspaceID(rawValue: 1)
         let yabai = FakeYabaiQuerying(currentSpace: workspace)
         let manager = StickyManager(

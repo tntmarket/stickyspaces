@@ -4,10 +4,10 @@ import Testing
 @testable import StickySpacesApp
 @testable import StickySpacesShared
 
-@Suite("Canvas layout and snapshot")
-struct CanvasLayoutTests {
-    @Test("test_canvasLayout_persistsWorkspacePositions")
-    func test_canvasLayout_persistsWorkspacePositions() async throws {
+@Suite("Canvas overview layout and snapshot behavior")
+struct CanvasOverviewBehaviorTests {
+    @Test("Canvas layout preserves custom workspace positions")
+    func canvasLayoutPreservesCustomWorkspacePositions() async throws {
         let workspace1 = WorkspaceID(rawValue: 1)
         let workspace2 = WorkspaceID(rawValue: 2)
         let yabai = FakeYabaiQuerying(currentSpace: workspace1)
@@ -34,8 +34,8 @@ struct CanvasLayoutTests {
         #expect(layout.workspaceDisplayIDs[workspace2] == 1)
     }
 
-    @Test("test_canvasLayout_newWorkspaceGetsDefaultPosition")
-    func test_canvasLayout_newWorkspaceGetsDefaultPosition() async throws {
+    @Test("New workspace gets a non-overlapping default canvas position")
+    func newWorkspaceGetsANonOverlappingDefaultCanvasPosition() async throws {
         let workspace1 = WorkspaceID(rawValue: 1)
         let workspace2 = WorkspaceID(rawValue: 2)
         let workspace3 = WorkspaceID(rawValue: 3)
@@ -75,8 +75,8 @@ struct CanvasLayoutTests {
         #expect(newPosition != afterAdd.workspacePositions[workspace2])
     }
 
-    @Test("test_canvasLayout_threeWorkspaces_nonOverlapping")
-    func test_canvasLayout_threeWorkspaces_nonOverlapping() async throws {
+    @Test("Three workspaces render as non-overlapping overview regions")
+    func threeWorkspacesRenderAsNonOverlappingOverviewRegions() async throws {
         let workspace1 = WorkspaceID(rawValue: 1)
         let workspace2 = WorkspaceID(rawValue: 2)
         let workspace3 = WorkspaceID(rawValue: 3)
@@ -107,8 +107,8 @@ struct CanvasLayoutTests {
         }
     }
 
-    @Test("test_activeWorkspaceHighlight_tracksCurrentWorkspace")
-    func test_activeWorkspaceHighlight_tracksCurrentWorkspace() async throws {
+    @Test("Active workspace highlight follows current workspace")
+    func activeWorkspaceHighlightFollowsCurrentWorkspace() async throws {
         let workspace1 = WorkspaceID(rawValue: 1)
         let workspace2 = WorkspaceID(rawValue: 2)
         let yabai = FakeYabaiQuerying(currentSpace: workspace1)
@@ -138,8 +138,8 @@ struct CanvasLayoutTests {
         #expect(second.regions.first(where: { $0.workspaceID == workspace1 })?.isActive == false)
     }
 
-    @Test("test_activeWorkspaceHighlight_visibleInCanvas")
-    func test_activeWorkspaceHighlight_visibleInCanvas() async throws {
+    @Test("Active workspace highlight is visible in the canvas")
+    func activeWorkspaceHighlightIsVisibleInTheCanvas() async throws {
         let workspace1 = WorkspaceID(rawValue: 1)
         let workspace2 = WorkspaceID(rawValue: 2)
         let yabai = FakeYabaiQuerying(currentSpace: workspace2)
@@ -166,8 +166,8 @@ struct CanvasLayoutTests {
         #expect(snapshot.invariants.isEmpty)
     }
 
-    @Test("test_panelToCanvasAlignment_matchesScreenPositions")
-    func test_panelToCanvasAlignment_matchesScreenPositions() async throws {
+    @Test("Panel-to-canvas transform round-trips screen positions")
+    func panelToCanvasTransformRoundTripsScreenPositions() async throws {
         let transform = PanelCanvasAlignmentContract(
             canvasOriginInScreenCoords: CGPoint(x: 640, y: 280),
             scale: 0.4
@@ -187,8 +187,8 @@ struct CanvasLayoutTests {
         }
     }
 
-    @Test("test_zoomOut_isDeterministicAcrossRepeatedInvocations")
-    func test_zoomOut_isDeterministicAcrossRepeatedInvocations() async throws {
+    @Test("Repeated zoom-out snapshots are deterministic")
+    func repeatedZoomOutSnapshotsAreDeterministic() async throws {
         let workspace1 = WorkspaceID(rawValue: 1)
         let workspace2 = WorkspaceID(rawValue: 2)
         let workspace3 = WorkspaceID(rawValue: 3)
@@ -216,8 +216,8 @@ struct CanvasLayoutTests {
         }
     }
 
-    @Test("test_zoomOutSnapshot_emitsStickyPreviews_withFullTextAndNormalizedGeometry")
-    func test_zoomOutSnapshot_emitsStickyPreviews_withFullTextAndNormalizedGeometry() async throws {
+    @Test("Zoom-out snapshot includes full-text sticky previews with normalized geometry")
+    func zoomOutSnapshotIncludesFullTextPreviewsWithNormalizedGeometry() async throws {
         let workspace = WorkspaceID(rawValue: 2)
         let yabai = FakeYabaiQuerying(currentSpace: workspace)
         await yabai.setTopologySnapshot(
@@ -233,7 +233,7 @@ struct CanvasLayoutTests {
         )
 
         let text = """
-        Ship FR-7 polish
+        Ship overview polish
         - verify timing
         - publish demo
         """
@@ -248,15 +248,15 @@ struct CanvasLayoutTests {
         #expect(preview.id == created.sticky.id)
         #expect(preview.text == text)
         #expect(preview.header == nil)
-        #expect(preview.displayHeader == "Ship FR-7 polish")
+        #expect(preview.displayHeader == "Ship overview polish")
         #expect(preview.x == 0.25)
         #expect(preview.y == 0.25)
         #expect(preview.width == 0.5)
         #expect(preview.height == 0.375)
     }
 
-    @Test("test_zoomOutSnapshot_preservesStickyRelativeGeometryWithinWorkspace")
-    func test_zoomOutSnapshot_preservesStickyRelativeGeometryWithinWorkspace() async throws {
+    @Test("Zoom-out snapshot preserves sticky relative geometry within a workspace")
+    func zoomOutSnapshotPreservesStickyRelativeGeometryWithinAWorkspace() async throws {
         let workspace = WorkspaceID(rawValue: 4)
         let yabai = FakeYabaiQuerying(currentSpace: workspace)
         await yabai.setTopologySnapshot(
@@ -287,13 +287,13 @@ struct CanvasLayoutTests {
         #expect(rightPreview.width > 0)
     }
 
-    @Test("test_overviewLayout_placesMinimalIntentLabelBelowWorkspace")
-    func test_overviewLayout_placesMinimalIntentLabelBelowWorkspace() async throws {
+    @Test("Overview cards place intent labels above workspace previews")
+    func overviewCardsPlaceIntentLabelsAboveWorkspacePreviews() async throws {
         let workspaceRect = CGRect(x: 120, y: 320, width: 480, height: 320)
         let stickyPreviews = [
             CanvasStickyPreview(
                 id: UUID(),
-                text: "Ship FR-7 polish\n- verify timing\n- publish demo",
+                text: "Ship overview polish\n- verify timing\n- publish demo",
                 header: nil,
                 x: 0.25,
                 y: 0.25,
@@ -312,11 +312,11 @@ struct CanvasLayoutTests {
         #expect(layout.intentLabelRect.maxY == layout.workspaceRect.minY - WorkspaceOverviewCardLayout.labelGap)
         #expect(layout.cardRect.contains(layout.workspaceRect))
         #expect(layout.cardRect.contains(layout.intentLabelRect))
-        #expect(layout.labelText == "Ship FR-7 polish")
+        #expect(layout.labelText == "Ship overview polish")
     }
 
-    @Test("test_intentPanel_headerFallback_usesFirstLineWhenHeaderMissing")
-    func test_intentPanel_headerFallback_usesFirstLineWhenHeaderMissing() async throws {
+    @Test("Intent header falls back to first non-empty line")
+    func intentHeaderFallsBackToFirstNonEmptyLine() async throws {
         let withoutHeader = CanvasStickyPreview(
             id: UUID(),
             text: "\n   \nPlan launch sequence\n- verify",
@@ -340,8 +340,8 @@ struct CanvasLayoutTests {
         #expect(explicitHeader.displayHeader == "Pinned Header")
     }
 
-    @Test("test_overviewReadOnly_doesNotMutateStickyTextOrPosition")
-    func test_overviewReadOnly_doesNotMutateStickyTextOrPosition() async throws {
+    @Test("Overview mode does not mutate sticky text or position")
+    func overviewModeDoesNotMutateStickyTextOrPosition() async throws {
         let workspace = WorkspaceID(rawValue: 9)
         let yabai = FakeYabaiQuerying(currentSpace: workspace)
         await yabai.setTopologySnapshot(
@@ -367,8 +367,8 @@ struct CanvasLayoutTests {
         #expect(before == after)
     }
 
-    @Test("test_navigateFromCanvas_clickSticky_focusesTargetWorkspace")
-    func test_navigateFromCanvas_clickSticky_focusesTargetWorkspace() async throws {
+    @Test("Clicking a sticky in overview focuses its workspace")
+    func clickingAStickyInOverviewFocusesItsWorkspace() async throws {
         let workspace1 = WorkspaceID(rawValue: 1)
         let workspace2 = WorkspaceID(rawValue: 2)
         let yabai = FakeYabaiQuerying(currentSpace: workspace1)
@@ -397,8 +397,8 @@ struct CanvasLayoutTests {
         #expect(await yabai.focusedSpaces() == [workspace2])
     }
 
-    @Test("test_zoomOutSnapshot_thumbnailMetadata_defaultsToSyntheticWithDisplay")
-    func test_zoomOutSnapshot_thumbnailMetadata_defaultsToSyntheticWithDisplay() async throws {
+    @Test("Zoom-out snapshot uses synthetic thumbnail metadata by default")
+    func zoomOutSnapshotUsesSyntheticThumbnailMetadataByDefault() async throws {
         let workspace = WorkspaceID(rawValue: 6)
         let yabai = FakeYabaiQuerying(currentSpace: workspace)
         await yabai.setTopologySnapshot(
@@ -421,8 +421,8 @@ struct CanvasLayoutTests {
         #expect(region.thumbnail.unavailableReason == nil)
     }
 
-    @Test("test_canvasRegionSnapshot_decodeBackCompat_defaultsMissingThumbnail")
-    func test_canvasRegionSnapshot_decodeBackCompat_defaultsMissingThumbnail() throws {
+    @Test("Legacy canvas-region payloads default missing thumbnail metadata")
+    func legacyCanvasRegionPayloadsDefaultMissingThumbnailMetadata() throws {
         let original = CanvasRegionSnapshot(
             workspaceID: WorkspaceID(rawValue: 9),
             displayID: 3,
@@ -444,8 +444,8 @@ struct CanvasLayoutTests {
         #expect(decoded.thumbnail.displayID == nil)
     }
 
-    @Test("test_thumbnailMetadata_marksCaptureAsStaleAfterThreshold")
-    func test_thumbnailMetadata_marksCaptureAsStaleAfterThreshold() {
+    @Test("Captured thumbnails become stale after the threshold")
+    func capturedThumbnailsBecomeStaleAfterTheThreshold() {
         let now = Date()
         let fresh = CanvasThumbnailMetadata(
             source: .cachedCapture,
@@ -456,8 +456,8 @@ struct CanvasLayoutTests {
         #expect(fresh.isStale(now: now, staleAfter: 2) == true)
     }
 
-    @Test("test_thumbnailMetadata_nonCaptureSourcesAreNotAgeStale")
-    func test_thumbnailMetadata_nonCaptureSourcesAreNotAgeStale() {
+    @Test("Synthetic and unavailable thumbnails are never age-stale")
+    func syntheticAndUnavailableThumbnailsAreNeverAgeStale() {
         let now = Date()
         let synthetic = CanvasThumbnailMetadata.synthetic
         let unavailable = CanvasThumbnailMetadata(

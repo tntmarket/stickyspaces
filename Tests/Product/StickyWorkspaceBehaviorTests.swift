@@ -3,10 +3,10 @@ import Testing
 @testable import StickySpacesApp
 @testable import StickySpacesShared
 
-@Suite("Sticky creation workspace binding")
-struct StickyStoreWorkspaceTests {
-    @Test("test_createSticky_associatesWithCurrentWorkspace")
-    func test_createSticky_associatesWithCurrentWorkspace() async throws {
+@Suite("Sticky notes stay tied to their workspace")
+struct StickyWorkspaceBehaviorTests {
+    @Test("Creating a sticky binds it to the current workspace")
+    func creatingStickyBindsItToCurrentWorkspace() async throws {
         let workspace = WorkspaceID(rawValue: 42)
         let manager = StickyManager(
             store: StickyStore(),
@@ -22,8 +22,8 @@ struct StickyStoreWorkspaceTests {
         #expect(created.focusIntent == .focusTextInputImmediately)
     }
 
-    @Test("test_createSticky_appearsOnCurrentWorkspace")
-    func test_createSticky_appearsOnCurrentWorkspace() async throws {
+    @Test("New sticky appears on the current workspace")
+    func newStickyAppearsOnCurrentWorkspace() async throws {
         let workspace = WorkspaceID(rawValue: 9)
         let panelSync = InMemoryPanelSync()
         let manager = StickyManager(
@@ -39,8 +39,8 @@ struct StickyStoreWorkspaceTests {
         #expect(result.mismatches.isEmpty)
     }
 
-    @Test("test_createMultipleStickies_sameWorkspace")
-    func test_createMultipleStickies_sameWorkspace() async throws {
+    @Test("Multiple stickies created in one workspace stay grouped")
+    func creatingMultipleStickiesKeepsWorkspaceGrouping() async throws {
         let workspace = WorkspaceID(rawValue: 12)
         let manager = StickyManager(
             store: StickyStore(),
@@ -57,8 +57,8 @@ struct StickyStoreWorkspaceTests {
         #expect(Set(notes.map(\.workspaceID)) == [workspace])
     }
 
-    @Test("test_dismissSticky_removesFromStore")
-    func test_dismissSticky_removesFromStore() async throws {
+    @Test("Dismissing a sticky removes it from the workspace")
+    func dismissingStickyRemovesItFromWorkspace() async throws {
         let workspace = WorkspaceID(rawValue: 12)
         let manager = StickyManager(
             store: StickyStore(),
@@ -77,8 +77,8 @@ struct StickyStoreWorkspaceTests {
         #expect(notes.contains(where: { $0.id == first.sticky.id }) == false)
     }
 
-    @Test("test_updateStickyText")
-    func test_updateStickyText() async throws {
+    @Test("Editing sticky text updates the stored note")
+    func editingStickyTextUpdatesStoredNote() async throws {
         let workspace = WorkspaceID(rawValue: 7)
         let manager = StickyManager(
             store: StickyStore(),
@@ -94,8 +94,8 @@ struct StickyStoreWorkspaceTests {
         #expect(notes[0].text == "After")
     }
 
-    @Test("test_updateStickyPosition")
-    func test_updateStickyPosition() async throws {
+    @Test("Moving a sticky persists its position")
+    func movingStickyPersistsPosition() async throws {
         let workspace = WorkspaceID(rawValue: 7)
         let manager = StickyManager(
             store: StickyStore(),
@@ -116,8 +116,8 @@ struct StickyStoreWorkspaceTests {
         #expect(notes[0].position.y == 456.25)
     }
 
-    @Test("test_updateStickySize")
-    func test_updateStickySize() async throws {
+    @Test("Resizing a sticky persists its size")
+    func resizingStickyPersistsSize() async throws {
         let workspace = WorkspaceID(rawValue: 7)
         let manager = StickyManager(
             store: StickyStore(),

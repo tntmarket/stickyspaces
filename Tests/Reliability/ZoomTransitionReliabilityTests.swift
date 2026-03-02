@@ -3,10 +3,10 @@ import Testing
 @testable import StickySpacesApp
 @testable import StickySpacesShared
 
-@Suite("Zoom transitions and fallback")
-struct ZoomTransitionTests {
-    @Test("test_zoomTransition_duration_within300to500ms_p95")
-    func test_zoomTransition_duration_within300to500ms_p95() async throws {
+@Suite("Zoom transition reliability and fallback")
+struct ZoomTransitionReliabilityTests {
+    @Test("zoom transition p95 duration stays within 300-500 ms")
+    func zoomTransitionDurationP95StaysWithinTargetRange() async throws {
         let workspace1 = WorkspaceID(rawValue: 1)
         let workspace2 = WorkspaceID(rawValue: 2)
         let yabai = FakeYabaiQuerying(currentSpace: workspace1)
@@ -39,8 +39,8 @@ struct ZoomTransitionTests {
         #expect(p95 <= 500)
     }
 
-    @Test("test_zoomIn_notificationLoss_recoversWithoutStuckCanvas")
-    func test_zoomIn_notificationLoss_recoversWithoutStuckCanvas() async throws {
+    @Test("zoom-in recovers from focus-notification loss without a stuck canvas")
+    func zoomInNotificationLossRecoversWithoutStuckCanvas() async throws {
         let workspace1 = WorkspaceID(rawValue: 1)
         let workspace2 = WorkspaceID(rawValue: 2)
         let yabai = FakeYabaiQuerying(currentSpace: workspace1)
@@ -66,8 +66,8 @@ struct ZoomTransitionTests {
         #expect(try await yabai.currentSpaceID() == workspace2)
     }
 
-    @Test("test_zoomTransition_modesParity_forced")
-    func test_zoomTransition_modesParity_forced() async throws {
+    @Test("forced mode parity checks pass across transition modes")
+    func forcedModeParityChecksPassAcrossTransitionModes() async throws {
         let workspace1 = WorkspaceID(rawValue: 1)
         let workspace2 = WorkspaceID(rawValue: 2)
         let yabai = FakeYabaiQuerying(currentSpace: workspace1)

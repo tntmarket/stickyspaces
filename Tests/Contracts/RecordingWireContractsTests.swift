@@ -3,8 +3,8 @@ import Testing
 @testable import VideoCaptureCore
 @testable import StickySpacesShared
 
-@Suite("Recording contracts")
-struct RecordingContractsTests {
+@Suite("Recording wire contracts")
+struct RecordingWireContractsTests {
     @Test("marker tokens and output extension stay backward compatible")
     func markerTokensAndOutputExtensionStayStable() {
         #expect(CaptureContract.markerStartPrefix == "SCENARIO_ACTIONS_START scenario=")

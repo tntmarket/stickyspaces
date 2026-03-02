@@ -265,20 +265,33 @@ private final class CanvasMarketingWindowController {
             panel.setFrame(screenFrame, display: true)
             canvasView.frame = panel.contentView?.bounds ?? canvasView.frame
         }
+        panel.orderOut(nil)
+        canvasView.setDesktopSnapshot(CGDisplayCreateImage(CGMainDisplayID()))
         canvasView.snapshot = snapshot
         canvasView.titleText = title
-        let startScale: CGFloat = 1.18
         let endScale: CGFloat = max(0.2, CGFloat(snapshot.viewport.zoomScale))
         let endPan = CGPoint(x: snapshot.viewport.panOffset.x, y: snapshot.viewport.panOffset.y)
         let heroStartRect = heroSticky.map { sticky in
             let screenRect = CGRect(origin: sticky.position, size: sticky.size)
             return screenRect.offsetBy(dx: -panel.frame.minX, dy: -panel.frame.minY)
         }
-        let startPan = canvasView.panOffsetContextualizingHero(
-            scale: startScale,
-            heroRect: heroStartRect
+        let startScale: CGFloat
+        let startPan: CGPoint
+        if canvasView.hasDesktopSnapshot {
+            startScale = canvasView.scaleFillingActiveWorkspace()
+            startPan = canvasView.panOffsetCenteringActiveWorkspace(scale: startScale)
+        } else {
+            startScale = 1.18
+            startPan = canvasView.panOffsetContextualizingHero(
+                scale: startScale,
+                heroRect: heroStartRect
+            )
+        }
+        let heroEndRect = canvasView.heroTargetRect(
+            scale: endScale,
+            pan: endPan,
+            heroStartRect: heroStartRect
         )
-        let heroEndRect = canvasView.heroTargetRect(scale: endScale, pan: endPan)
         canvasView.configureHeroTransition(start: heroStartRect, end: heroEndRect)
 
         panel.alphaValue = 1
@@ -343,6 +356,23 @@ private final class CanvasMarketingView: NSView {
 
     private var heroStartRect: CGRect?
     private var heroEndRect: CGRect?
+    private var desktopSnapshotImage: NSImage?
+    private var desktopSnapshotAspectRatio: CGFloat?
+
+    var hasDesktopSnapshot: Bool { desktopSnapshotImage != nil }
+
+    func setDesktopSnapshot(_ snapshot: CGImage?) {
+        guard let snapshot else {
+            desktopSnapshotImage = nil
+            desktopSnapshotAspectRatio = nil
+            return
+        }
+        desktopSnapshotImage = NSImage(
+            cgImage: snapshot,
+            size: NSSize(width: snapshot.width, height: snapshot.height)
+        )
+        desktopSnapshotAspectRatio = CGFloat(snapshot.width) / max(1, CGFloat(snapshot.height))
+    }
 
     override func draw(_ dirtyRect: NSRect) {
         NSColor(calibratedRed: 0.06, green: 0.07, blue: 0.09, alpha: 1.0).setFill()
@@ -350,13 +380,38 @@ private final class CanvasMarketingView: NSView {
 
         let canvasBounds = regionUnionBounds()
         let base = centeredBase(bounds: bounds, content: canvasBounds, scale: displayScale)
+        var activeRegion: CanvasRegionSnapshot?
+        var activeRegionRect: CGRect?
         for region in snapshot.regions {
-            let rect = transformedRect(region.frame, base: base, scale: displayScale, pan: panOffset)
-            drawRegion(region, in: rect, hidePrimaryStickyMarker: heroStartRect != nil)
+            let transformed = transformedRect(region.frame, base: base, scale: displayScale, pan: panOffset)
+            let rect = adjustedWorkspaceRectForSnapshotAspect(transformed)
+            if region.isActive {
+                activeRegion = region
+                activeRegionRect = rect
+                continue
+            }
+            drawRegion(region, in: rect, hidePrimaryStickyMarker: false)
         }
 
-        if let heroRect = currentHeroRect() {
-            drawHeroSticky(in: heroRect)
+        if
+            let activeRegion,
+            let activeRegionRect,
+            let desktopSnapshotImage
+        {
+            drawDesktopWorkspaceSnapshot(
+                desktopSnapshotImage,
+                in: activeRegionRect,
+                label: "Workspace \(activeRegion.workspaceID.rawValue)"
+            )
+        } else if let activeRegion, let activeRegionRect {
+            drawRegion(
+                activeRegion,
+                in: activeRegionRect,
+                hidePrimaryStickyMarker: heroStartRect != nil
+            )
+            if let heroRect = currentHeroRect() {
+                drawHeroSticky(in: heroRect)
+            }
         }
 
         drawTitleAndLegend()
@@ -368,10 +423,25 @@ private final class CanvasMarketingView: NSView {
         }
         let canvasBounds = regionUnionBounds()
         let base = centeredBase(bounds: bounds, content: canvasBounds, scale: scale)
-        let activeRect = transformedRect(active.frame, base: base, scale: scale, pan: .zero)
+        let transformedActiveRect = transformedRect(active.frame, base: base, scale: scale, pan: .zero)
+        let activeRect = adjustedWorkspaceRectForSnapshotAspect(transformedActiveRect)
         let viewCenter = CGPoint(x: bounds.midX, y: bounds.midY)
         let activeCenter = CGPoint(x: activeRect.midX, y: activeRect.midY)
         return CGPoint(x: viewCenter.x - activeCenter.x, y: viewCenter.y - activeCenter.y)
+    }
+
+    func scaleFillingActiveWorkspace() -> CGFloat {
+        guard let active = snapshot.regions.first(where: { $0.isActive }) else {
+            return 1.18
+        }
+        let activeWidth = max(1, active.frame.width)
+        let activeHeight = max(1, active.frame.height)
+        let activeAspect = activeWidth / activeHeight
+        let targetAspect = desktopSnapshotAspectRatio ?? (bounds.width / max(1, bounds.height))
+        if activeAspect >= targetAspect {
+            return bounds.height / activeHeight
+        }
+        return bounds.width / activeWidth
     }
 
     func panOffsetContextualizingHero(scale: CGFloat, heroRect: CGRect?) -> CGPoint {
@@ -383,7 +453,8 @@ private final class CanvasMarketingView: NSView {
         }
 
         let base = centeredBase(bounds: bounds, content: regionUnionBounds(), scale: scale)
-        let activeRect = transformedRect(active.frame, base: base, scale: scale, pan: .zero)
+        let transformedActiveRect = transformedRect(active.frame, base: base, scale: scale, pan: .zero)
+        let activeRect = adjustedWorkspaceRectForSnapshotAspect(transformedActiveRect)
         let anchor = CGPoint(
             x: activeRect.minX + max(16, activeRect.width * 0.14),
             y: activeRect.maxY - max(20, activeRect.height * 0.20)
@@ -397,20 +468,33 @@ private final class CanvasMarketingView: NSView {
         heroEndRect = end
     }
 
-    func heroTargetRect(scale: CGFloat, pan: CGPoint) -> CGRect? {
+    func heroTargetRect(scale: CGFloat, pan: CGPoint, heroStartRect: CGRect?) -> CGRect? {
         guard let active = snapshot.regions.first(where: { $0.isActive }) else {
             return nil
         }
         let base = centeredBase(bounds: bounds, content: regionUnionBounds(), scale: scale)
-        let activeRect = transformedRect(active.frame, base: base, scale: scale, pan: pan)
-        let width = max(24, activeRect.width * 0.16)
-        let height = max(18, activeRect.height * 0.12)
-        return CGRect(
-            x: activeRect.minX + max(14, activeRect.width * 0.08),
-            y: activeRect.maxY - height - max(16, activeRect.height * 0.10),
-            width: width,
-            height: height
+        let transformedActiveRect = transformedRect(active.frame, base: base, scale: scale, pan: pan)
+        let activeRect = adjustedWorkspaceRectForSnapshotAspect(transformedActiveRect)
+        guard let heroStartRect else {
+            let width = max(24, activeRect.width * 0.16)
+            let height = max(18, activeRect.height * 0.12)
+            return CGRect(
+                x: activeRect.minX + max(14, activeRect.width * 0.08),
+                y: activeRect.maxY - height - max(16, activeRect.height * 0.10),
+                width: width,
+                height: height
+            )
+        }
+
+        // Preserve proportional desktop position/size inside the active workspace box.
+        let normalized = normalizedRect(heroStartRect, inside: bounds)
+        let rawTarget = CGRect(
+            x: activeRect.minX + (activeRect.width * normalized.minX),
+            y: activeRect.minY + (activeRect.height * normalized.minY),
+            width: activeRect.width * normalized.width,
+            height: activeRect.height * normalized.height
         )
+        return clampRect(rawTarget, inside: activeRect)
     }
 
     private func currentHeroRect() -> CGRect? {
@@ -510,6 +594,59 @@ private final class CanvasMarketingView: NSView {
         border.stroke()
     }
 
+    private func drawDesktopWorkspaceSnapshot(_ image: NSImage, in rect: CGRect, label: String) {
+        let t = max(0, min(1, transitionProgress))
+        let cornerRadius = interpolate(from: 0, to: 18, progress: t)
+
+        NSGraphicsContext.saveGraphicsState()
+        let clip = NSBezierPath(roundedRect: rect, xRadius: cornerRadius, yRadius: cornerRadius)
+        clip.addClip()
+        image.draw(in: rect)
+        NSGraphicsContext.restoreGraphicsState()
+
+        let border = NSBezierPath(roundedRect: rect, xRadius: cornerRadius, yRadius: cornerRadius)
+        NSColor(calibratedRed: 0.72, green: 0.84, blue: 1.0, alpha: 1).setStroke()
+        border.lineWidth = interpolate(from: 2.2, to: 3.0, progress: t)
+        border.stroke()
+
+        let labelAttrs: [NSAttributedString.Key: Any] = [
+            .font: NSFont.boldSystemFont(ofSize: max(12, rect.height * 0.055)),
+            .foregroundColor: NSColor.white
+        ]
+        label.draw(at: CGPoint(x: rect.minX + 14, y: rect.maxY - 34), withAttributes: labelAttrs)
+    }
+
+    private func adjustedWorkspaceRectForSnapshotAspect(_ rect: CGRect) -> CGRect {
+        guard
+            let aspect = desktopSnapshotAspectRatio,
+            aspect > 0,
+            rect.width > 0,
+            rect.height > 0
+        else {
+            return rect
+        }
+        let rectAspect = rect.width / rect.height
+        if abs(rectAspect - aspect) < 0.0001 {
+            return rect
+        }
+        if rectAspect > aspect {
+            let width = rect.height * aspect
+            return CGRect(
+                x: rect.midX - (width / 2),
+                y: rect.minY,
+                width: width,
+                height: rect.height
+            )
+        }
+        let height = rect.width / aspect
+        return CGRect(
+            x: rect.minX,
+            y: rect.midY - (height / 2),
+            width: rect.width,
+            height: height
+        )
+    }
+
     private func drawTitleAndLegend() {
         let titleAttrs: [NSAttributedString.Key: Any] = [
             .font: NSFont.systemFont(ofSize: 22, weight: .semibold),
@@ -527,6 +664,28 @@ private final class CanvasMarketingView: NSView {
 
     private func interpolate(from: CGFloat, to: CGFloat, progress: CGFloat) -> CGFloat {
         from + ((to - from) * progress)
+    }
+
+    private func normalizedRect(_ rect: CGRect, inside container: CGRect) -> CGRect {
+        guard container.width > 0, container.height > 0 else {
+            return CGRect(x: 0.1, y: 0.1, width: 0.15, height: 0.12)
+        }
+        return CGRect(
+            x: rect.minX / container.width,
+            y: rect.minY / container.height,
+            width: rect.width / container.width,
+            height: rect.height / container.height
+        )
+    }
+
+    private func clampRect(_ rect: CGRect, inside container: CGRect) -> CGRect {
+        let minWidth = min(max(14, container.width * 0.05), container.width)
+        let minHeight = min(max(12, container.height * 0.05), container.height)
+        let width = min(max(minWidth, rect.width), container.width)
+        let height = min(max(minHeight, rect.height), container.height)
+        let x = min(max(container.minX, rect.minX), container.maxX - width)
+        let y = min(max(container.minY, rect.minY), container.maxY - height)
+        return CGRect(x: x, y: y, width: width, height: height)
     }
 }
 

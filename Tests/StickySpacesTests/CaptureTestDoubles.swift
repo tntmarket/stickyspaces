@@ -1,5 +1,5 @@
 import Foundation
-@testable import StickySpacesCapture
+@testable import VideoCaptureCore
 
 actor FakeRunnerOutput: RunnerProcess {
     private let lines: [String]

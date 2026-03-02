@@ -1,6 +1,6 @@
 import Foundation
 @testable import StickySpacesApp
-@testable import StickySpacesCapture
+@testable import VideoCaptureCore
 @testable import StickySpacesShared
 
 enum VideoBackedE2EStep: Sendable {

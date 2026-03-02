@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import StickySpacesCapture
+@testable import VideoCaptureCore
 
 @Suite("CaptureBackendSelector")
 struct CaptureBackendSelectorTests {

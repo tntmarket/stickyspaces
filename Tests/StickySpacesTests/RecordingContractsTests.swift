@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import StickySpacesCapture
+@testable import VideoCaptureCore
 @testable import StickySpacesShared
 
 @Suite("Recording contracts")

@@ -396,4 +396,78 @@ struct CanvasLayoutTests {
         #expect(try await yabai.currentSpaceID() == workspace2)
         #expect(await yabai.focusedSpaces() == [workspace2])
     }
+
+    @Test("test_zoomOutSnapshot_thumbnailMetadata_defaultsToSyntheticWithDisplay")
+    func test_zoomOutSnapshot_thumbnailMetadata_defaultsToSyntheticWithDisplay() async throws {
+        let workspace = WorkspaceID(rawValue: 6)
+        let yabai = FakeYabaiQuerying(currentSpace: workspace)
+        await yabai.setTopologySnapshot(
+            WorkspaceTopologySnapshot(
+                spaces: [WorkspaceDescriptor(workspaceID: workspace, index: 1, displayID: 7)],
+                primaryDisplayID: 7
+            )
+        )
+        let manager = StickyManager(
+            store: StickyStore(),
+            yabai: yabai,
+            panelSync: InMemoryPanelSync()
+        )
+
+        let snapshot = try await manager.zoomOutSnapshot()
+        let region = try #require(snapshot.regions.first)
+        #expect(region.thumbnail.source == .synthetic)
+        #expect(region.thumbnail.displayID == 7)
+        #expect(region.thumbnail.capturedAt == nil)
+        #expect(region.thumbnail.unavailableReason == nil)
+    }
+
+    @Test("test_canvasRegionSnapshot_decodeBackCompat_defaultsMissingThumbnail")
+    func test_canvasRegionSnapshot_decodeBackCompat_defaultsMissingThumbnail() throws {
+        let original = CanvasRegionSnapshot(
+            workspaceID: WorkspaceID(rawValue: 9),
+            displayID: 3,
+            frame: CGRect(x: 10, y: 20, width: 400, height: 280),
+            stickyCount: 2,
+            isActive: false,
+            stickyPreviews: []
+        )
+        let encoded = try JSONEncoder().encode(original)
+        let json = try #require(
+            JSONSerialization.jsonObject(with: encoded) as? [String: Any]
+        )
+        var legacyPayload = json
+        legacyPayload.removeValue(forKey: "thumbnail")
+        let legacyData = try JSONSerialization.data(withJSONObject: legacyPayload)
+
+        let decoded = try JSONDecoder().decode(CanvasRegionSnapshot.self, from: legacyData)
+        #expect(decoded.thumbnail.source == .synthetic)
+        #expect(decoded.thumbnail.displayID == nil)
+    }
+
+    @Test("test_thumbnailMetadata_marksCaptureAsStaleAfterThreshold")
+    func test_thumbnailMetadata_marksCaptureAsStaleAfterThreshold() {
+        let now = Date()
+        let fresh = CanvasThumbnailMetadata(
+            source: .cachedCapture,
+            capturedAt: now.addingTimeInterval(-3),
+            displayID: 1
+        )
+        #expect(fresh.isStale(now: now, staleAfter: 5) == false)
+        #expect(fresh.isStale(now: now, staleAfter: 2) == true)
+    }
+
+    @Test("test_thumbnailMetadata_nonCaptureSourcesAreNotAgeStale")
+    func test_thumbnailMetadata_nonCaptureSourcesAreNotAgeStale() {
+        let now = Date()
+        let synthetic = CanvasThumbnailMetadata.synthetic
+        let unavailable = CanvasThumbnailMetadata(
+            source: .unavailable,
+            capturedAt: now.addingTimeInterval(-999),
+            displayID: 1,
+            unavailableReason: "screen-capture-failed"
+        )
+
+        #expect(synthetic.isStale(now: now, staleAfter: 0) == false)
+        #expect(unavailable.isStale(now: now, staleAfter: 0) == false)
+    }
 }

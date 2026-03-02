@@ -51,7 +51,11 @@ public enum CanvasLayoutEngine {
                 frame: frame,
                 stickyCount: stickyCounts[descriptor.workspaceID, default: 0],
                 isActive: descriptor.workspaceID == activeWorkspaceID,
-                stickyPreviews: stickyPreviews
+                stickyPreviews: stickyPreviews,
+                thumbnail: CanvasThumbnailMetadata(
+                    source: .synthetic,
+                    displayID: descriptor.displayID
+                )
             )
         }
 

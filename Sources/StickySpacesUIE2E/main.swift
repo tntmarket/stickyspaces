@@ -4,6 +4,7 @@ import StickySpacesShared
 
 #if canImport(AppKit)
 import AppKit
+import Darwin
 
 @main
 enum StickySpacesUIE2ERunner {
@@ -27,7 +28,11 @@ enum StickySpacesUIE2ERunner {
 
         print("Running scenario \(config.scenario.rawValue)")
         print(config.scenario.description)
+        print("SCENARIO_ACTIONS_START scenario=\(config.scenario.rawValue)")
+        fflush(stdout)
         try await runScenario(config.scenario, manager: manager, yabai: yabai, panelSync: panelSync)
+        print("SCENARIO_ACTIONS_COMPLETE scenario=\(config.scenario.rawValue)")
+        fflush(stdout)
 
         let deadline = Date().addingTimeInterval(config.durationSeconds)
         while Date() < deadline {
@@ -243,9 +248,18 @@ enum StickySpacesUIE2ERunner {
 }
 
 @MainActor
+private struct CachedWorkspaceThumbnail {
+    let image: NSImage
+    let metadata: CanvasThumbnailMetadata
+}
+
+@MainActor
 private final class CanvasMarketingWindowController {
     private let panel: NSPanel
     private let canvasView: CanvasMarketingView
+    private static let thumbnailStaleAfterSeconds: TimeInterval = 8
+    private var workspaceThumbnails: [WorkspaceID: CachedWorkspaceThumbnail] = [:]
+    private var lastActiveWorkspaceID: WorkspaceID?
 
     init() {
         panel = NSPanel(
@@ -272,8 +286,23 @@ private final class CanvasMarketingWindowController {
             canvasView.frame = panel.contentView?.bounds ?? canvasView.frame
         }
         panel.orderOut(nil)
-        canvasView.setDesktopSnapshot(CGDisplayCreateImage(CGMainDisplayID()))
-        canvasView.snapshot = snapshot
+        invalidatePreviousActiveThumbnail(nextActiveWorkspaceID: snapshot.activeWorkspaceID)
+        pruneWorkspaceThumbnailCache(keeping: Set(snapshot.regions.map(\.workspaceID)))
+
+        let activeRegion = activeRegion(in: snapshot)
+        let activeCapture = captureActiveWorkspaceThumbnail(region: activeRegion)
+        if let activeWorkspaceID = snapshot.activeWorkspaceID, let thumbnail = activeCapture.cached {
+            workspaceThumbnails[activeWorkspaceID] = thumbnail
+        }
+
+        let preparedSnapshot = snapshotWithThumbnailMetadata(
+            snapshot,
+            activeCaptureMetadata: activeCapture.liveMetadata
+        )
+        canvasView.setDesktopSnapshot(activeCapture.cached?.image)
+        canvasView.setWorkspaceSnapshotCache(workspaceThumbnails)
+        canvasView.setThumbnailStaleAfter(seconds: Self.thumbnailStaleAfterSeconds)
+        canvasView.snapshot = preparedSnapshot
         let endScale: CGFloat = max(0.2, CGFloat(snapshot.viewport.zoomScale))
         let endPan = CGPoint(x: snapshot.viewport.panOffset.x, y: snapshot.viewport.panOffset.y)
         let heroStartRect = heroSticky.map { sticky in
@@ -298,17 +327,17 @@ private final class CanvasMarketingWindowController {
             heroStartRect: heroStartRect
         )
         canvasView.configureHeroTransition(start: heroStartRect, end: heroEndRect)
-
-        panel.alphaValue = 1
-        panel.ignoresMouseEvents = true
-        panel.makeKeyAndOrderFront(nil)
-        panel.orderFrontRegardless()
-        NSApplication.shared.activate(ignoringOtherApps: true)
-
         canvasView.displayScale = startScale
         canvasView.panOffset = startPan
         canvasView.transitionProgress = 0
         canvasView.needsDisplay = true
+
+        panel.alphaValue = 1
+        panel.ignoresMouseEvents = true
+        panel.disableScreenUpdatesUntilFlush()
+        panel.makeKeyAndOrderFront(nil)
+        panel.orderFrontRegardless()
+        NSApplication.shared.activate(ignoringOtherApps: true)
     }
 
     func animateZoomOut() async {
@@ -344,6 +373,96 @@ private final class CanvasMarketingWindowController {
     private func interpolate(from: CGFloat, to: CGFloat, progress: CGFloat) -> CGFloat {
         from + ((to - from) * progress)
     }
+
+    private func activeRegion(in snapshot: CanvasSnapshot) -> CanvasRegionSnapshot? {
+        guard let activeWorkspaceID = snapshot.activeWorkspaceID else {
+            return nil
+        }
+        return snapshot.regions.first(where: { $0.workspaceID == activeWorkspaceID })
+    }
+
+    private func captureActiveWorkspaceThumbnail(
+        region: CanvasRegionSnapshot?
+    ) -> (cached: CachedWorkspaceThumbnail?, liveMetadata: CanvasThumbnailMetadata) {
+        let displayID = region?.displayID
+        let now = Date()
+        guard let image = captureScreenImage(displayID: displayID) else {
+            return (
+                nil,
+                CanvasThumbnailMetadata(
+                    source: .unavailable,
+                    displayID: displayID,
+                    unavailableReason: "screen-capture-failed"
+                )
+            )
+        }
+        let cachedMetadata = CanvasThumbnailMetadata(
+            source: .cachedCapture,
+            capturedAt: now,
+            displayID: displayID
+        )
+        return (
+            CachedWorkspaceThumbnail(image: image, metadata: cachedMetadata),
+            CanvasThumbnailMetadata(
+                source: .liveCapture,
+                capturedAt: now,
+                displayID: displayID
+            )
+        )
+    }
+
+    private func captureScreenImage(displayID: Int?) -> NSImage? {
+        if let displayID, displayID > 0, let direct = CGDisplayCreateImage(CGDirectDisplayID(displayID)) {
+            return NSImage(cgImage: direct, size: NSSize(width: direct.width, height: direct.height))
+        }
+        guard let main = CGDisplayCreateImage(CGMainDisplayID()) else {
+            return nil
+        }
+        return NSImage(cgImage: main, size: NSSize(width: main.width, height: main.height))
+    }
+
+    private func snapshotWithThumbnailMetadata(
+        _ snapshot: CanvasSnapshot,
+        activeCaptureMetadata: CanvasThumbnailMetadata
+    ) -> CanvasSnapshot {
+        let regions = snapshot.regions.map { region in
+            if let activeWorkspaceID = snapshot.activeWorkspaceID, region.workspaceID == activeWorkspaceID {
+                return region.updatingThumbnail(activeCaptureMetadata)
+            }
+            if let cached = workspaceThumbnails[region.workspaceID] {
+                return region.updatingThumbnail(cached.metadata)
+            }
+            return region.updatingThumbnail(
+                CanvasThumbnailMetadata(
+                    source: .synthetic,
+                    displayID: region.displayID
+                )
+            )
+        }
+        return CanvasSnapshot(
+            viewport: snapshot.viewport,
+            activeWorkspaceID: snapshot.activeWorkspaceID,
+            regions: regions,
+            invariants: snapshot.invariants
+        )
+    }
+
+    private func invalidatePreviousActiveThumbnail(nextActiveWorkspaceID: WorkspaceID?) {
+        defer { lastActiveWorkspaceID = nextActiveWorkspaceID }
+        guard
+            let previous = lastActiveWorkspaceID,
+            previous != nextActiveWorkspaceID,
+            let cached = workspaceThumbnails[previous]
+        else {
+            return
+        }
+        let stale = cached.metadata.markingStale(staleAfter: Self.thumbnailStaleAfterSeconds)
+        workspaceThumbnails[previous] = CachedWorkspaceThumbnail(image: cached.image, metadata: stale)
+    }
+
+    private func pruneWorkspaceThumbnailCache(keeping workspaceIDs: Set<WorkspaceID>) {
+        workspaceThumbnails = workspaceThumbnails.filter { workspaceIDs.contains($0.key) }
+    }
 }
 
 @MainActor
@@ -362,20 +481,27 @@ private final class CanvasMarketingView: NSView {
     private var heroEndRect: CGRect?
     private var desktopSnapshotImage: NSImage?
     private var desktopSnapshotAspectRatio: CGFloat?
+    private var workspaceSnapshotCache: [WorkspaceID: CachedWorkspaceThumbnail] = [:]
+    private var thumbnailStaleAfterSeconds: TimeInterval = 8
 
     var hasDesktopSnapshot: Bool { desktopSnapshotImage != nil }
 
-    func setDesktopSnapshot(_ snapshot: CGImage?) {
+    func setWorkspaceSnapshotCache(_ cache: [WorkspaceID: CachedWorkspaceThumbnail]) {
+        workspaceSnapshotCache = cache
+    }
+
+    func setThumbnailStaleAfter(seconds: TimeInterval) {
+        thumbnailStaleAfterSeconds = max(0, seconds)
+    }
+
+    func setDesktopSnapshot(_ snapshot: NSImage?) {
         guard let snapshot else {
             desktopSnapshotImage = nil
             desktopSnapshotAspectRatio = nil
             return
         }
-        desktopSnapshotImage = NSImage(
-            cgImage: snapshot,
-            size: NSSize(width: snapshot.width, height: snapshot.height)
-        )
-        desktopSnapshotAspectRatio = CGFloat(snapshot.width) / max(1, CGFloat(snapshot.height))
+        desktopSnapshotImage = snapshot
+        desktopSnapshotAspectRatio = snapshot.size.width / max(1, snapshot.size.height)
     }
 
     override func draw(_ dirtyRect: NSRect) {
@@ -384,6 +510,7 @@ private final class CanvasMarketingView: NSView {
 
         let canvasBounds = regionUnionBounds()
         let base = centeredBase(bounds: bounds, content: canvasBounds, scale: displayScale)
+        let now = Date()
         var activeRegion: CanvasRegionSnapshot?
         var activeLayout: WorkspaceOverviewCardLayout?
         for region in snapshot.regions {
@@ -399,20 +526,44 @@ private final class CanvasMarketingView: NSView {
                 activeLayout = layout
                 continue
             }
-            drawWorkspaceCard(region, layout: layout, hidePrimaryStickyMarker: false)
+            if let cached = workspaceSnapshotCache[region.workspaceID] {
+                let isStale = cached.metadata.isStale(
+                    now: now,
+                    staleAfter: thumbnailStaleAfterSeconds
+                )
+                drawDesktopWorkspaceSnapshot(
+                    cached.image,
+                    in: layout.workspaceRect,
+                    isActive: false,
+                    isStale: isStale
+                )
+                drawIntentLabel(layout: layout, isActive: false, isStale: isStale)
+            } else {
+                let isStale = region.thumbnail.isStale(now: now, staleAfter: thumbnailStaleAfterSeconds)
+                drawWorkspaceCard(
+                    region,
+                    layout: layout,
+                    hidePrimaryStickyMarker: false,
+                    isStale: isStale
+                )
+            }
         }
 
         if activeRegion != nil, let activeLayout, let desktopSnapshotImage {
+            let activeDesktopRect = interpolatedActiveDesktopRect(target: activeLayout.workspaceRect)
             drawDesktopWorkspaceSnapshot(
                 desktopSnapshotImage,
-                in: activeLayout.workspaceRect
+                in: activeDesktopRect,
+                isActive: true
             )
             drawIntentLabel(layout: activeLayout, isActive: true)
         } else if let activeRegion, let activeLayout {
+            let isStale = activeRegion.thumbnail.isStale(now: now, staleAfter: thumbnailStaleAfterSeconds)
             drawWorkspaceCard(
                 activeRegion,
                 layout: activeLayout,
-                hidePrimaryStickyMarker: heroStartRect != nil
+                hidePrimaryStickyMarker: heroStartRect != nil,
+                isStale: isStale
             )
             if heroStartRect != nil, let heroRect = currentHeroRect() {
                 drawHeroSticky(in: heroRect)
@@ -423,29 +574,36 @@ private final class CanvasMarketingView: NSView {
     private func drawWorkspaceCard(
         _ region: CanvasRegionSnapshot,
         layout: WorkspaceOverviewCardLayout,
-        hidePrimaryStickyMarker: Bool
+        hidePrimaryStickyMarker: Bool,
+        isStale: Bool
     ) {
         drawRegion(region, in: layout.workspaceRect, hidePrimaryStickyMarker: hidePrimaryStickyMarker)
-        drawIntentLabel(layout: layout, isActive: region.isActive)
+        drawIntentLabel(layout: layout, isActive: region.isActive, isStale: isStale)
     }
 
-    private func drawIntentLabel(layout: WorkspaceOverviewCardLayout, isActive: Bool) {
+    private func drawIntentLabel(layout: WorkspaceOverviewCardLayout, isActive: Bool, isStale: Bool = false) {
         guard let labelText = layout.labelText, labelText.isEmpty == false else {
             return
         }
+        let renderedText = isStale && !isActive ? "\(labelText) (stale)" : labelText
         let paragraph = NSMutableParagraphStyle()
         paragraph.lineBreakMode = .byTruncatingTail
         paragraph.alignment = .left
+        let labelColor: NSColor = {
+            if isActive {
+                return NSColor(calibratedWhite: 0.98, alpha: 0.96)
+            }
+            if isStale {
+                return NSColor(calibratedRed: 0.95, green: 0.80, blue: 0.58, alpha: 0.94)
+            }
+            return NSColor(calibratedWhite: 0.84, alpha: 0.9)
+        }()
         let attributes: [NSAttributedString.Key: Any] = [
             .font: NSFont.systemFont(ofSize: 11, weight: .medium),
-            .foregroundColor: (
-                isActive
-                    ? NSColor(calibratedWhite: 0.98, alpha: 0.96)
-                    : NSColor(calibratedWhite: 0.84, alpha: 0.9)
-            ),
+            .foregroundColor: labelColor,
             .paragraphStyle: paragraph
         ]
-        NSString(string: labelText).draw(
+        NSString(string: renderedText).draw(
             in: layout.intentLabelRect,
             withAttributes: attributes
         )
@@ -656,9 +814,16 @@ private final class CanvasMarketingView: NSView {
         border.stroke()
     }
 
-    private func drawDesktopWorkspaceSnapshot(_ image: NSImage, in rect: CGRect) {
+    private func drawDesktopWorkspaceSnapshot(
+        _ image: NSImage,
+        in rect: CGRect,
+        isActive: Bool,
+        isStale: Bool = false
+    ) {
         let t = max(0, min(1, transitionProgress))
-        let cornerRadius = interpolate(from: 0, to: 18, progress: t)
+        let cornerRadius = isActive
+            ? interpolate(from: 0, to: 18, progress: t)
+            : 18
 
         NSGraphicsContext.saveGraphicsState()
         let clip = NSBezierPath(roundedRect: rect, xRadius: cornerRadius, yRadius: cornerRadius)
@@ -667,9 +832,27 @@ private final class CanvasMarketingView: NSView {
         NSGraphicsContext.restoreGraphicsState()
 
         let border = NSBezierPath(roundedRect: rect, xRadius: cornerRadius, yRadius: cornerRadius)
-        NSColor(calibratedRed: 0.72, green: 0.84, blue: 1.0, alpha: 1).setStroke()
-        border.lineWidth = interpolate(from: 2.2, to: 3.0, progress: t)
+        if isActive {
+            NSColor(calibratedRed: 0.72, green: 0.84, blue: 1.0, alpha: 1).setStroke()
+            border.lineWidth = interpolate(from: 2.2, to: 3.0, progress: t)
+        } else if isStale {
+            NSColor(calibratedRed: 0.95, green: 0.78, blue: 0.55, alpha: 0.96).setStroke()
+            border.lineWidth = 1.8
+        } else {
+            NSColor(calibratedWhite: 0.45, alpha: 0.9).setStroke()
+            border.lineWidth = 1.5
+        }
         border.stroke()
+    }
+
+    private func interpolatedActiveDesktopRect(target: CGRect) -> CGRect {
+        let t = max(0, min(1, transitionProgress))
+        return CGRect(
+            x: interpolate(from: bounds.minX, to: target.minX, progress: t),
+            y: interpolate(from: bounds.minY, to: target.minY, progress: t),
+            width: interpolate(from: bounds.width, to: target.width, progress: t),
+            height: interpolate(from: bounds.height, to: target.height, progress: t)
+        )
     }
 
     private func adjustedWorkspaceRectForSnapshotAspect(_ rect: CGRect) -> CGRect {

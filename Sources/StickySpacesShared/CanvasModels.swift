@@ -69,6 +69,58 @@ public struct CanvasStickyPreview: Codable, Sendable, Equatable {
     }
 }
 
+public enum CanvasThumbnailSource: String, Codable, Sendable, Equatable {
+    case synthetic
+    case cachedCapture
+    case liveCapture
+    case unavailable
+}
+
+public struct CanvasThumbnailMetadata: Codable, Sendable, Equatable {
+    public let source: CanvasThumbnailSource
+    public let capturedAt: Date?
+    public let displayID: Int?
+    public let unavailableReason: String?
+
+    public init(
+        source: CanvasThumbnailSource,
+        capturedAt: Date? = nil,
+        displayID: Int? = nil,
+        unavailableReason: String? = nil
+    ) {
+        self.source = source
+        self.capturedAt = capturedAt
+        self.displayID = displayID
+        self.unavailableReason = unavailableReason
+    }
+
+    public static let synthetic = CanvasThumbnailMetadata(source: .synthetic)
+
+    public var isCaptureBased: Bool {
+        source == .cachedCapture || source == .liveCapture
+    }
+
+    public func isStale(now: Date = Date(), staleAfter: TimeInterval) -> Bool {
+        guard staleAfter >= 0, isCaptureBased, let capturedAt else {
+            return false
+        }
+        return now.timeIntervalSince(capturedAt) > staleAfter
+    }
+
+    public func markingStale(now: Date = Date(), staleAfter: TimeInterval) -> CanvasThumbnailMetadata {
+        guard isCaptureBased else {
+            return self
+        }
+        let staleAt = now.addingTimeInterval(-(max(0, staleAfter) + 1))
+        return CanvasThumbnailMetadata(
+            source: source,
+            capturedAt: staleAt,
+            displayID: displayID,
+            unavailableReason: unavailableReason
+        )
+    }
+}
+
 public struct CanvasRegionSnapshot: Codable, Sendable, Equatable {
     public let workspaceID: WorkspaceID
     public let displayID: Int
@@ -76,6 +128,7 @@ public struct CanvasRegionSnapshot: Codable, Sendable, Equatable {
     public let stickyCount: Int
     public let isActive: Bool
     public let stickyPreviews: [CanvasStickyPreview]
+    public let thumbnail: CanvasThumbnailMetadata
 
     public init(
         workspaceID: WorkspaceID,
@@ -83,7 +136,8 @@ public struct CanvasRegionSnapshot: Codable, Sendable, Equatable {
         frame: CGRect,
         stickyCount: Int,
         isActive: Bool,
-        stickyPreviews: [CanvasStickyPreview] = []
+        stickyPreviews: [CanvasStickyPreview] = [],
+        thumbnail: CanvasThumbnailMetadata = .synthetic
     ) {
         self.workspaceID = workspaceID
         self.displayID = displayID
@@ -91,6 +145,7 @@ public struct CanvasRegionSnapshot: Codable, Sendable, Equatable {
         self.stickyCount = stickyCount
         self.isActive = isActive
         self.stickyPreviews = stickyPreviews
+        self.thumbnail = thumbnail
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -100,6 +155,7 @@ public struct CanvasRegionSnapshot: Codable, Sendable, Equatable {
         case stickyCount
         case isActive
         case stickyPreviews
+        case thumbnail
     }
 
     public init(from decoder: any Decoder) throws {
@@ -110,6 +166,7 @@ public struct CanvasRegionSnapshot: Codable, Sendable, Equatable {
         stickyCount = try container.decode(Int.self, forKey: .stickyCount)
         isActive = try container.decode(Bool.self, forKey: .isActive)
         stickyPreviews = try container.decodeIfPresent([CanvasStickyPreview].self, forKey: .stickyPreviews) ?? []
+        thumbnail = try container.decodeIfPresent(CanvasThumbnailMetadata.self, forKey: .thumbnail) ?? .synthetic
     }
 
     public func encode(to encoder: any Encoder) throws {
@@ -120,6 +177,19 @@ public struct CanvasRegionSnapshot: Codable, Sendable, Equatable {
         try container.encode(stickyCount, forKey: .stickyCount)
         try container.encode(isActive, forKey: .isActive)
         try container.encode(stickyPreviews, forKey: .stickyPreviews)
+        try container.encode(thumbnail, forKey: .thumbnail)
+    }
+
+    public func updatingThumbnail(_ thumbnail: CanvasThumbnailMetadata) -> CanvasRegionSnapshot {
+        CanvasRegionSnapshot(
+            workspaceID: workspaceID,
+            displayID: displayID,
+            frame: frame,
+            stickyCount: stickyCount,
+            isActive: isActive,
+            stickyPreviews: stickyPreviews,
+            thumbnail: thumbnail
+        )
     }
 }
 

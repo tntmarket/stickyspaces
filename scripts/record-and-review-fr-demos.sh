@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
-DURATION="${1:-16}"
+DURATION="${1:-auto}"
 WORKSPACE_ID="${2:-1}"
 OUTPUT_DIR="${3:-artifacts/ui-demos}"
 DISPLAY_ID="${4:-1}"

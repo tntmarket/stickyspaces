@@ -1,49 +1,52 @@
 # UI E2E Demo Collection
 
-This project includes a visible AppKit-based demo runner that can record one video per functional requirement (FR-1 through FR-11).
+This project includes a visible AppKit-based demo runner that records one video per use-case scenario.
 
 ## Quick Start
 
 Record one FR demo:
 
 ```bash
-scripts/record-ui-demo.sh fr-1 16
+scripts/record-ui-demo.sh create-sticky-current-workspace auto
 ```
 
 Record the full FR collection:
 
 ```bash
-scripts/record-all-fr-demos.sh 16
+scripts/record-all-fr-demos.sh auto
 ```
 
 Record + analyze + generate an HTML feedback report in one step:
 
 ```bash
-scripts/record-and-review-fr-demos.sh 16
+scripts/record-and-review-fr-demos.sh auto
 ```
 
 Videos are written to:
 
-- `artifacts/ui-demos/`
+- `artifacts/ui-demos/<scenario-id>/<scenario-id>.mov`
+- `artifacts/ui-demos/<scenario-id>/<scenario-id>.inspect.mp4`
+
+Each rerun overwrites assets for that scenario path.
 
 Analysis output is written to:
 
-- `artifacts/ui-demos/review/`
+- `artifacts/ui-demos/<scenario-id>/review/`
 - `artifacts/ui-demos/review/index.html`
 
 ## Scenario Map
 
-- `fr-1` — Create sticky on current workspace
-- `fr-2` — Workspace switch visibility behavior
-- `fr-3` — Edit sticky text in place
-- `fr-4` — Move + resize sticky
-- `fr-5` — Multiple stickies per workspace
-- `fr-6` — Dismiss a sticky
-- `fr-7` — Zoom-out canvas overview
-- `fr-8` — Navigate by sticky selection
-- `fr-9` — Arrange workspace regions
-- `fr-10` — Active workspace highlight in zoom-out
-- `fr-11` — Workspace-destroyed visibility removal + confirmation deletion
+- `create-sticky-current-workspace` — Create sticky on current workspace
+- `workspace-switch-shows-associated-stickies` — Workspace switch visibility behavior
+- `edit-sticky-text-in-place` — Edit sticky text in place
+- `move-and-resize-sticky` — Move + resize sticky
+- `multiple-stickies-per-workspace` — Multiple stickies per workspace
+- `dismiss-sticky` — Dismiss a sticky
+- `zoom-out-canvas-overview` — Zoom-out canvas overview
+- `navigate-by-sticky-selection` — Navigate by sticky selection
+- `arrange-workspace-regions` — Arrange workspace regions
+- `highlight-active-workspace-in-overview` — Active workspace highlight in zoom-out
+- `remove-stickies-for-destroyed-workspace` — Workspace-destroyed visibility removal + confirmation deletion
 
 ## Notes
 
@@ -53,13 +56,13 @@ Analysis output is written to:
 - Use the optional display argument if you need a non-main monitor:
 
 ```bash
-scripts/record-ui-demo.sh fr-1 16 1 artifacts/ui-demos 2
+scripts/record-ui-demo.sh create-sticky-current-workspace auto 1 artifacts/ui-demos 2
 ```
 
 Quick analyze-only loop for existing videos:
 
 ```bash
-for f in artifacts/ui-demos/*.mov; do
+for f in artifacts/ui-demos/*/*.mov; do
   scripts/analyze-ui-demo.py --video "$f"
 done
 scripts/report-ui-demos.py

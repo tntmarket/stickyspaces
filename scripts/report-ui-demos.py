@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from html import escape
 from pathlib import Path
 
@@ -27,7 +28,7 @@ def parse_args() -> argparse.Namespace:
 def render_section(entry: dict, report_dir: Path) -> str:
     scenario = escape(entry["scenario"])
     video = Path(entry["video"])
-    rel_video = escape(str(video.relative_to(report_dir.parent)))
+    rel_video = escape(os.path.relpath(video, start=report_dir))
     duration = entry.get("duration_seconds", 0)
     res = entry.get("resolution", {})
     width = res.get("width", "?")
@@ -38,7 +39,7 @@ def render_section(entry: dict, report_dir: Path) -> str:
     frames_html = []
     for frame_path in entry.get("frames", []):
         frame = Path(frame_path)
-        rel_frame = escape(str(frame.relative_to(report_dir)))
+        rel_frame = escape(os.path.relpath(frame, start=report_dir))
         frames_html.append(
             f'<a href="{rel_frame}"><img src="{rel_frame}" alt="{scenario} frame" '
             'style="width:220px;border:1px solid #444;border-radius:6px"/></a>'
@@ -47,7 +48,7 @@ def render_section(entry: dict, report_dir: Path) -> str:
     return f"""
 <section style="margin:24px 0;padding:16px;border:1px solid #333;border-radius:10px;background:#101215">
   <h2 style="margin-top:0">{scenario}</h2>
-  <p><strong>Video:</strong> <a href="../{rel_video}">{video.name}</a></p>
+  <p><strong>Video:</strong> <a href="{rel_video}">{video.name}</a></p>
   <p><strong>Duration:</strong> {duration}s | <strong>Resolution:</strong> {width}x{height} | <strong>FPS:</strong> {fps}</p>
   <p><strong>Expected observations:</strong></p>
   <ul>{notes}</ul>
@@ -63,9 +64,16 @@ def main() -> int:
     output.parent.mkdir(parents=True, exist_ok=True)
 
     entries = []
-    for json_file in sorted(analysis_root.glob("*.json")):
+    for json_file in sorted(analysis_root.rglob("*.json")):
+        if json_file.parent.name != "review":
+            continue
+        if json_file.parent.parent == analysis_root:
+            continue
         with json_file.open("r", encoding="utf-8") as handle:
-            entries.append(json.load(handle))
+            parsed = json.load(handle)
+            if "video" not in parsed or "scenario" not in parsed:
+                continue
+            entries.append(parsed)
 
     sections = [render_section(entry, output.parent) for entry in entries]
     html = f"""<!doctype html>

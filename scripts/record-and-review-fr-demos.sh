@@ -10,19 +10,20 @@ OUTPUT_DIR="${3:-artifacts/ui-demos}"
 DISPLAY_ID="${4:-1}"
 FRAME_COUNT="${5:-8}"
 
-echo "Step 1/3: Recording FR demos..."
+echo "Step 1/3: Recording UI demos..."
 scripts/record-all-fr-demos.sh "$DURATION" "$WORKSPACE_ID" "$OUTPUT_DIR" "$DISPLAY_ID"
 
 echo
 echo "Step 2/3: Analyzing recorded videos..."
-ANALYSIS_DIR="${OUTPUT_DIR}/review"
-mkdir -p "$ANALYSIS_DIR"
-
-for video in "$OUTPUT_DIR"/*.mov; do
-  scripts/analyze-ui-demo.py --video "$video" --output-root "$ANALYSIS_DIR" --frames "$FRAME_COUNT"
+mkdir -p "${OUTPUT_DIR}/review"
+shopt -s nullglob
+for video in "$OUTPUT_DIR"/*/*.mov; do
+  case_review_dir="$(dirname "$video")/review"
+  scripts/analyze-ui-demo.py --video "$video" --output-root "$case_review_dir" --frames "$FRAME_COUNT"
 done
+shopt -u nullglob
 
 echo
 echo "Step 3/3: Building review report..."
-scripts/report-ui-demos.py --analysis-root "$ANALYSIS_DIR" --output "${ANALYSIS_DIR}/index.html"
-echo "Review report: ${ANALYSIS_DIR}/index.html"
+scripts/report-ui-demos.py --analysis-root "$OUTPUT_DIR" --output "${OUTPUT_DIR}/review/index.html"
+echo "Review report: ${OUTPUT_DIR}/review/index.html"

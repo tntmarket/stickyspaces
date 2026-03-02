@@ -10,20 +10,20 @@ OUTPUT_DIR="${3:-artifacts/ui-demos}"
 DISPLAY_ID="${4:-1}"
 
 SCENARIOS=(
-  "fr-1"
-  "fr-2"
-  "fr-3"
-  "fr-4"
-  "fr-5"
-  "fr-6"
-  "fr-7"
-  "fr-8"
-  "fr-9"
-  "fr-10"
-  "fr-11"
+  "create-sticky-current-workspace"
+  "workspace-switch-shows-associated-stickies"
+  "edit-sticky-text-in-place"
+  "move-and-resize-sticky"
+  "multiple-stickies-per-workspace"
+  "dismiss-sticky"
+  "zoom-out-canvas-overview"
+  "navigate-by-sticky-selection"
+  "arrange-workspace-regions"
+  "highlight-active-workspace-in-overview"
+  "remove-stickies-for-destroyed-workspace"
 )
 
-echo "Recording full FR demo collection..."
+echo "Recording full UI demo collection..."
 if [[ "$DURATION" == "auto" ]]; then
   echo " duration per demo: auto (scenario-aware)"
 else
@@ -38,4 +38,4 @@ for scenario in "${SCENARIOS[@]}"; do
   echo
 done
 
-echo "Done. FR demo collection available in: ${OUTPUT_DIR}"
+echo "Done. UI demo collection available in: ${OUTPUT_DIR}"

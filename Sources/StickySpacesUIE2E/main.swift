@@ -65,11 +65,11 @@ enum StickySpacesUIE2ERunner {
         await yabai.setCurrentBinding(.stable(workspaceID: workspace1, displayID: 1, isPrimaryDisplay: true))
 
         switch scenario {
-        case .fr1CreateSticky:
-            let first = try await manager.createSticky(text: "FR-1: Created via command path")
+        case .createStickyCurrentWorkspace:
+            let first = try await manager.createSticky(text: "Created via command path")
             try await manager.updateStickyPosition(id: first.sticky.id, x: 120, y: 620)
 
-        case .fr2WorkspaceVisibility:
+        case .workspaceSwitchShowsAssociatedStickies:
             await yabai.setCurrentBinding(.stable(workspaceID: workspace1, displayID: 1, isPrimaryDisplay: true))
             _ = try await manager.createSticky(text: "Workspace 1 sticky")
             await yabai.setCurrentBinding(.stable(workspaceID: workspace2, displayID: 1, isPrimaryDisplay: true))
@@ -78,37 +78,37 @@ enum StickySpacesUIE2ERunner {
             try? await Task.sleep(for: .seconds(1))
             await showOnlyWorkspace(manager: manager, panelSync: panelSync, workspaceID: workspace2)
 
-        case .fr3EditInPlace:
-            let created = try await manager.createSticky(text: "FR-3 Before")
+        case .editStickyTextInPlace:
+            let created = try await manager.createSticky(text: "Edit before")
             try? await Task.sleep(for: .milliseconds(700))
-            try await manager.updateStickyText(id: created.sticky.id, text: "FR-3 After")
+            try await manager.updateStickyText(id: created.sticky.id, text: "Edit after")
 
-        case .fr4MoveResize:
-            let created = try await manager.createSticky(text: "FR-4 move + resize")
+        case .moveAndResizeSticky:
+            let created = try await manager.createSticky(text: "Move + resize demo")
             try await manager.updateStickyPosition(id: created.sticky.id, x: 200, y: 500)
             try await manager.updateStickySize(id: created.sticky.id, width: 420, height: 260)
 
-        case .fr5MultipleStickies:
-            let first = try await manager.createSticky(text: "FR-5 Sticky A")
+        case .multipleStickiesPerWorkspace:
+            let first = try await manager.createSticky(text: "Sticky A")
             try await manager.updateStickyPosition(id: first.sticky.id, x: 100, y: 610)
-            let second = try await manager.createSticky(text: "FR-5 Sticky B")
+            let second = try await manager.createSticky(text: "Sticky B")
             try await manager.updateStickyPosition(id: second.sticky.id, x: 430, y: 560)
-            let third = try await manager.createSticky(text: "FR-5 Sticky C")
+            let third = try await manager.createSticky(text: "Sticky C")
             try await manager.updateStickyPosition(id: third.sticky.id, x: 760, y: 510)
 
-        case .fr6DismissSticky:
-            let first = try await manager.createSticky(text: "FR-6 Keep")
-            let second = try await manager.createSticky(text: "FR-6 Dismiss Me")
+        case .dismissSticky:
+            let first = try await manager.createSticky(text: "Keep")
+            let second = try await manager.createSticky(text: "Dismiss me")
             try await manager.updateStickyPosition(id: first.sticky.id, x: 120, y: 600)
             try await manager.updateStickyPosition(id: second.sticky.id, x: 520, y: 560)
             try? await Task.sleep(for: .seconds(1))
             try await manager.dismissSticky(id: second.sticky.id)
 
-        case .fr7ZoomOutCanvas:
-            let first = try await manager.createSticky(text: "FR-7 A")
+        case .zoomOutCanvasOverview:
+            let first = try await manager.createSticky(text: "Overview seed A")
             try await manager.updateStickyPosition(id: first.sticky.id, x: 210, y: 640)
             await yabai.setCurrentBinding(.stable(workspaceID: workspace2, displayID: 1, isPrimaryDisplay: true))
-            let second = try await manager.createSticky(text: "FR-7 Draft")
+            let second = try await manager.createSticky(text: "Overview draft")
             try await manager.updateStickyPosition(id: second.sticky.id, x: 280, y: 420)
             try? await Task.sleep(for: .milliseconds(650))
             try await manager.updateStickyText(
@@ -129,16 +129,16 @@ enum StickySpacesUIE2ERunner {
                 panelSync: panelSync
             )
 
-        case .fr8NavigateBySticky:
+        case .navigateByStickySelection:
             await yabai.setCurrentBinding(.stable(workspaceID: workspace2, displayID: 1, isPrimaryDisplay: true))
-            let target = try await manager.createSticky(text: "FR-8 Target workspace 2")
+            let target = try await manager.createSticky(text: "Target workspace 2")
             await yabai.setCurrentBinding(.stable(workspaceID: workspace1, displayID: 1, isPrimaryDisplay: true))
             await showOnlyWorkspace(manager: manager, panelSync: panelSync, workspaceID: workspace1)
             try? await Task.sleep(for: .seconds(1))
             try await manager.navigateFromCanvasClick(stickyID: target.sticky.id)
             await showOnlyWorkspace(manager: manager, panelSync: panelSync, workspaceID: workspace2)
 
-        case .fr9ArrangeRegions:
+        case .arrangeWorkspaceRegions:
             await manager.setWorkspacePosition(workspace1, position: CGPoint(x: 80, y: 120))
             await manager.setWorkspacePosition(workspace2, position: CGPoint(x: 540, y: 180))
             await manager.setWorkspacePosition(workspace3, position: CGPoint(x: 980, y: 260))
@@ -151,10 +151,10 @@ enum StickySpacesUIE2ERunner {
                 panelSync: panelSync
             )
 
-        case .fr10ActiveWorkspaceHighlight:
-            _ = try await manager.createSticky(text: "FR-10 highlight source")
+        case .highlightActiveWorkspaceInOverview:
+            _ = try await manager.createSticky(text: "Highlight source")
             await yabai.setCurrentBinding(.stable(workspaceID: workspace3, displayID: 1, isPrimaryDisplay: true))
-            _ = try await manager.createSticky(text: "FR-10 highlight target")
+            _ = try await manager.createSticky(text: "Highlight target")
             let snapshot = try await manager.zoomOutSnapshot()
             print("active-workspace-highlight=\(snapshot.activeWorkspaceID?.rawValue.description ?? "none")")
             await showCanvasExperience(
@@ -163,9 +163,9 @@ enum StickySpacesUIE2ERunner {
                 panelSync: panelSync
             )
 
-        case .fr11DestroyedWorkspace:
+        case .removeStickiesForDestroyedWorkspace:
             await yabai.setCurrentBinding(.stable(workspaceID: workspace2, displayID: 1, isPrimaryDisplay: true))
-            let doomed = try await manager.createSticky(text: "FR-11 doomed workspace sticky")
+            let doomed = try await manager.createSticky(text: "Doomed workspace sticky")
             await showOnlyWorkspace(manager: manager, panelSync: panelSync, workspaceID: workspace2)
             try? await Task.sleep(for: .seconds(1))
 
@@ -921,7 +921,7 @@ private struct RunnerConfig {
 
     init(arguments: [String]) {
         var durationSeconds: TimeInterval = 20
-        var scenario: UIScenario = .fr1CreateSticky
+        var scenario: UIScenario = .createStickyCurrentWorkspace
         var workspaceID = 1
         var showHelp = false
 
@@ -935,7 +935,7 @@ private struct RunnerConfig {
                     index += 1
                 }
             case "--scenario":
-                if index + 1 < arguments.count, let value = UIScenario(rawValue: arguments[index + 1]) {
+                if index + 1 < arguments.count, let value = UIScenario.parseCLI(arguments[index + 1]) {
                     scenario = value
                     index += 1
                 }
@@ -961,48 +961,68 @@ private struct RunnerConfig {
     static let helpText = """
     stickyspaces-ui-e2e options:
       --duration <seconds>       Total time to keep stickies visible (default: 20)
-      --scenario <fr-id>         One of: \(UIScenario.allCases.map(\.rawValue).joined(separator: ", "))
+      --scenario <case-id>       One of: \(UIScenario.allCases.map(\.rawValue).joined(separator: ", "))
       --workspace <id>           Fake workspace id for the demo (default: 1)
     """
 }
 
 private enum UIScenario: String, CaseIterable {
-    case fr1CreateSticky = "fr-1"
-    case fr2WorkspaceVisibility = "fr-2"
-    case fr3EditInPlace = "fr-3"
-    case fr4MoveResize = "fr-4"
-    case fr5MultipleStickies = "fr-5"
-    case fr6DismissSticky = "fr-6"
-    case fr7ZoomOutCanvas = "fr-7"
-    case fr8NavigateBySticky = "fr-8"
-    case fr9ArrangeRegions = "fr-9"
-    case fr10ActiveWorkspaceHighlight = "fr-10"
-    case fr11DestroyedWorkspace = "fr-11"
+    case createStickyCurrentWorkspace = "create-sticky-current-workspace"
+    case workspaceSwitchShowsAssociatedStickies = "workspace-switch-shows-associated-stickies"
+    case editStickyTextInPlace = "edit-sticky-text-in-place"
+    case moveAndResizeSticky = "move-and-resize-sticky"
+    case multipleStickiesPerWorkspace = "multiple-stickies-per-workspace"
+    case dismissSticky = "dismiss-sticky"
+    case zoomOutCanvasOverview = "zoom-out-canvas-overview"
+    case navigateByStickySelection = "navigate-by-sticky-selection"
+    case arrangeWorkspaceRegions = "arrange-workspace-regions"
+    case highlightActiveWorkspaceInOverview = "highlight-active-workspace-in-overview"
+    case removeStickiesForDestroyedWorkspace = "remove-stickies-for-destroyed-workspace"
+
+    static func parseCLI(_ value: String) -> UIScenario? {
+        if let exact = UIScenario(rawValue: value) {
+            return exact
+        }
+        switch value {
+        case "fr-1": return .createStickyCurrentWorkspace
+        case "fr-2": return .workspaceSwitchShowsAssociatedStickies
+        case "fr-3": return .editStickyTextInPlace
+        case "fr-4": return .moveAndResizeSticky
+        case "fr-5": return .multipleStickiesPerWorkspace
+        case "fr-6": return .dismissSticky
+        case "fr-7": return .zoomOutCanvasOverview
+        case "fr-8": return .navigateByStickySelection
+        case "fr-9": return .arrangeWorkspaceRegions
+        case "fr-10": return .highlightActiveWorkspaceInOverview
+        case "fr-11": return .removeStickiesForDestroyedWorkspace
+        default: return nil
+        }
+    }
 
     var description: String {
         switch self {
-        case .fr1CreateSticky:
-            return "FR-1: create a sticky on current workspace."
-        case .fr2WorkspaceVisibility:
-            return "FR-2: show stickies for the switched-to workspace."
-        case .fr3EditInPlace:
-            return "FR-3: edit sticky text in place."
-        case .fr4MoveResize:
-            return "FR-4: move and resize a sticky."
-        case .fr5MultipleStickies:
-            return "FR-5: multiple stickies on one workspace."
-        case .fr6DismissSticky:
-            return "FR-6: dismiss sticky removes it from view."
-        case .fr7ZoomOutCanvas:
-            return "FR-7: zoom-out snapshot over all workspaces."
-        case .fr8NavigateBySticky:
-            return "FR-8: navigate by sticky selection from canvas."
-        case .fr9ArrangeRegions:
-            return "FR-9: arrange workspace regions."
-        case .fr10ActiveWorkspaceHighlight:
-            return "FR-10: active workspace highlight in zoom-out."
-        case .fr11DestroyedWorkspace:
-            return "FR-11: workspace-destroyed visibility removal then hard-delete."
+        case .createStickyCurrentWorkspace:
+            return "Create a sticky on the current workspace."
+        case .workspaceSwitchShowsAssociatedStickies:
+            return "Show only stickies for the active workspace after switching."
+        case .editStickyTextInPlace:
+            return "Edit sticky text in place."
+        case .moveAndResizeSticky:
+            return "Move and resize a sticky."
+        case .multipleStickiesPerWorkspace:
+            return "Show multiple stickies in one workspace."
+        case .dismissSticky:
+            return "Dismiss one sticky while preserving others."
+        case .zoomOutCanvasOverview:
+            return "Show zoom-out canvas overview across workspaces."
+        case .navigateByStickySelection:
+            return "Navigate to a workspace by selecting its sticky."
+        case .arrangeWorkspaceRegions:
+            return "Arrange workspace regions on the overview canvas."
+        case .highlightActiveWorkspaceInOverview:
+            return "Highlight the active workspace in overview."
+        case .removeStickiesForDestroyedWorkspace:
+            return "Remove stickies for a destroyed workspace after confirmation."
         }
     }
 }

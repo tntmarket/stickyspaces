@@ -5,7 +5,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
 DURATION="${1:-20}"
-SCENARIO="${2:-fr-1}"
+SCENARIO="${2:-create-sticky-current-workspace}"
 WORKSPACE_ID="${3:-1}"
 
 echo "Launching visible UI E2E demo..."

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import shutil
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
@@ -32,7 +33,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--video", required=True, help="Path to .mov demo video.")
     parser.add_argument(
         "--scenario",
-        help="Scenario id (for example fr-7). If omitted, inferred from filename.",
+        help="Scenario id (for example zoom-out-canvas-overview). If omitted, inferred from filename.",
     )
     parser.add_argument(
         "--output-root",
@@ -49,13 +50,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def infer_scenario(video_path: Path) -> str:
-    stem = video_path.stem
-    parts = stem.split("-")
-    if len(parts) >= 2 and parts[-2].startswith("fr"):
-        return f"{parts[-2]}-{parts[-1]}"
-    if parts and parts[-1].startswith("fr"):
-        return parts[-1]
-    return "unknown"
+    return video_path.stem
 
 
 def probe_video(video_path: Path) -> tuple[float, int, int, float]:
@@ -108,20 +103,45 @@ def extract_frame(video_path: Path, output_file: Path, timestamp_seconds: float)
 
 
 def expected_observations(scenario: str) -> list[str]:
+    canonical = {
+        "fr-1": "create-sticky-current-workspace",
+        "fr-2": "workspace-switch-shows-associated-stickies",
+        "fr-3": "edit-sticky-text-in-place",
+        "fr-4": "move-and-resize-sticky",
+        "fr-5": "multiple-stickies-per-workspace",
+        "fr-6": "dismiss-sticky",
+        "fr-7": "zoom-out-canvas-overview",
+        "fr-8": "navigate-by-sticky-selection",
+        "fr-9": "arrange-workspace-regions",
+        "fr-10": "highlight-active-workspace-in-overview",
+        "fr-11": "remove-stickies-for-destroyed-workspace",
+    }.get(scenario, scenario)
+
     map_: dict[str, list[str]] = {
-        "fr-1": ["one sticky appears", "sticky remains visible"],
-        "fr-2": ["workspace 1 sticky visible", "workspace switch visibility changes"],
-        "fr-3": ["sticky text updates from before to after"],
-        "fr-4": ["sticky changes position", "sticky changes size"],
-        "fr-5": ["multiple stickies visible simultaneously"],
-        "fr-6": ["one sticky disappears while others remain"],
-        "fr-7": ["canvas overview window appears", "multiple workspace regions visible"],
-        "fr-8": ["selection causes workspace navigation"],
-        "fr-9": ["canvas region arrangement reflects moved positions"],
-        "fr-10": ["active workspace highlighted in canvas overview"],
-        "fr-11": ["workspace sticky hidden", "later confirmation state shown"],
+        "create-sticky-current-workspace": ["one sticky appears", "sticky remains visible"],
+        "workspace-switch-shows-associated-stickies": [
+            "workspace 1 sticky visible",
+            "workspace switch visibility changes",
+        ],
+        "edit-sticky-text-in-place": ["sticky text updates from before to after"],
+        "move-and-resize-sticky": ["sticky changes position", "sticky changes size"],
+        "multiple-stickies-per-workspace": ["multiple stickies visible simultaneously"],
+        "dismiss-sticky": ["one sticky disappears while others remain"],
+        "zoom-out-canvas-overview": [
+            "canvas overview window appears",
+            "multiple workspace regions visible",
+        ],
+        "navigate-by-sticky-selection": ["selection causes workspace navigation"],
+        "arrange-workspace-regions": ["canvas region arrangement reflects moved positions"],
+        "highlight-active-workspace-in-overview": [
+            "active workspace highlighted in canvas overview",
+        ],
+        "remove-stickies-for-destroyed-workspace": [
+            "workspace sticky hidden",
+            "later confirmation state shown",
+        ],
     }
-    return map_.get(scenario, ["verify scenario behavior manually"])
+    return map_.get(canonical, ["verify scenario behavior manually"])
 
 
 def analyze(video_path: Path, scenario: str, output_root: Path, frame_count: int) -> VideoSummary:
@@ -129,6 +149,8 @@ def analyze(video_path: Path, scenario: str, output_root: Path, frame_count: int
 
     safe_name = video_path.stem
     frame_dir = output_root / safe_name / "frames"
+    if frame_dir.exists():
+        shutil.rmtree(frame_dir)
     frame_dir.mkdir(parents=True, exist_ok=True)
 
     extracted_frames: list[str] = []

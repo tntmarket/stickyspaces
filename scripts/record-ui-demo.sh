@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
-SCENARIO="${1:-fr-1}"
+SCENARIO_INPUT="${1:-create-sticky-current-workspace}"
 DURATION_INPUT="${2:-auto}"
 WORKSPACE_ID="${3:-1}"
 OUTPUT_DIR="${4:-artifacts/ui-demos}"
@@ -17,7 +17,25 @@ POST_TRIM_AFTER_COMPLETE="${POST_TRIM_AFTER_COMPLETE:-1}"
 POST_TRIM_SAFETY_SECONDS="${POST_TRIM_SAFETY_SECONDS:-0.2}"
 KEEP_RUNNER_LOG="${KEEP_RUNNER_LOG:-0}"
 GENERATE_INSPECTION_COPY="${GENERATE_INSPECTION_COPY:-1}"
-INSPECTION_OUTPUT_DIR="${INSPECTION_OUTPUT_DIR:-${OUTPUT_DIR}/review/inspection}"
+
+canonical_scenario_name() {
+  case "$1" in
+    fr-1) echo "create-sticky-current-workspace" ;;
+    fr-2) echo "workspace-switch-shows-associated-stickies" ;;
+    fr-3) echo "edit-sticky-text-in-place" ;;
+    fr-4) echo "move-and-resize-sticky" ;;
+    fr-5) echo "multiple-stickies-per-workspace" ;;
+    fr-6) echo "dismiss-sticky" ;;
+    fr-7) echo "zoom-out-canvas-overview" ;;
+    fr-8) echo "navigate-by-sticky-selection" ;;
+    fr-9) echo "arrange-workspace-regions" ;;
+    fr-10) echo "highlight-active-workspace-in-overview" ;;
+    fr-11) echo "remove-stickies-for-destroyed-workspace" ;;
+    *) echo "$1" ;;
+  esac
+}
+
+SCENARIO="$(canonical_scenario_name "$SCENARIO_INPUT")"
 
 epoch_ms() {
   python3 - <<'PY'
@@ -28,10 +46,10 @@ PY
 
 recommended_duration_for_scenario() {
   case "$1" in
-    fr-7|fr-9|fr-10)
+    zoom-out-canvas-overview|arrange-workspace-regions|highlight-active-workspace-in-overview)
       echo "8"
       ;;
-    fr-11)
+    remove-stickies-for-destroyed-workspace)
       echo "9"
       ;;
     *)
@@ -53,9 +71,16 @@ if ! [[ "$DURATION" =~ ^[0-9]+([.][0-9]+)?$ ]]; then
   exit 1
 fi
 
-mkdir -p "$OUTPUT_DIR"
-STAMP="$(date +%Y%m%d-%H%M%S)"
-OUTPUT_FILE="${OUTPUT_DIR}/${STAMP}-${SCENARIO}.mov"
+CASE_OUTPUT_DIR="${OUTPUT_DIR}/${SCENARIO}"
+INSPECTION_OUTPUT_DIR="${INSPECTION_OUTPUT_DIR:-${CASE_OUTPUT_DIR}}"
+OUTPUT_FILE="${CASE_OUTPUT_DIR}/${SCENARIO}.mov"
+INSPECTION_FILE="${INSPECTION_OUTPUT_DIR}/${SCENARIO}.inspect.mp4"
+
+rm -rf "$CASE_OUTPUT_DIR"
+mkdir -p "$CASE_OUTPUT_DIR"
+if [[ "$INSPECTION_OUTPUT_DIR" != "$CASE_OUTPUT_DIR" ]]; then
+  mkdir -p "$INSPECTION_OUTPUT_DIR"
+fi
 
 echo "Recording UI demo"
 echo " scenario: $SCENARIO"
@@ -221,8 +246,6 @@ fi
 echo "Saved demo video: $OUTPUT_FILE"
 
 if [[ "$GENERATE_INSPECTION_COPY" == "1" ]]; then
-  mkdir -p "$INSPECTION_OUTPUT_DIR"
-  INSPECTION_FILE="${INSPECTION_OUTPUT_DIR}/${STAMP}-${SCENARIO}.inspect.mp4"
   scripts/optimize-ui-demo-for-inspection.sh "$OUTPUT_FILE" "$INSPECTION_FILE"
   echo "Saved inspection copy: $INSPECTION_FILE"
 fi

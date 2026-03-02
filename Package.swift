@@ -9,7 +9,6 @@ let package = Package(
     products: [
         .library(name: "StickySpacesShared", targets: ["StickySpacesShared"]),
         .library(name: "StickySpacesApp", targets: ["StickySpacesApp"]),
-        .library(name: "StickySpacesClient", targets: ["StickySpacesClient"]),
         .library(name: "VideoCaptureCore", targets: ["VideoCaptureCore"]),
         .executable(name: "stickyspaces", targets: ["StickySpacesCLI"])
     ],
@@ -25,22 +24,17 @@ let package = Package(
             dependencies: ["StickySpacesShared"]
         ),
         .target(
-            name: "StickySpacesClient",
-            dependencies: ["StickySpacesShared"]
-        ),
-        .target(
             name: "VideoCaptureCore",
             dependencies: ["StickySpacesShared"]
         ),
         .executableTarget(
             name: "StickySpacesCLI",
-            dependencies: ["StickySpacesApp", "StickySpacesClient", "StickySpacesShared"]
+            dependencies: ["StickySpacesApp", "StickySpacesShared"]
         ),
         .testTarget(
             name: "StickySpacesTests",
             dependencies: [
                 "StickySpacesApp",
-                "StickySpacesClient",
                 "StickySpacesCLI",
                 "VideoCaptureCore",
                 "StickySpacesShared",

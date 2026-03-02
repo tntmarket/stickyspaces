@@ -1,15 +1,12 @@
 import Foundation
 import StickySpacesApp
-import StickySpacesClient
 import StickySpacesShared
 
 public struct DemoApp {
     public let automation: any StickySpacesAutomating
-    public let client: StickySpacesClient
 
-    public init(automation: any StickySpacesAutomating, client: StickySpacesClient) {
+    public init(automation: any StickySpacesAutomating) {
         self.automation = automation
-        self.client = client
     }
 }
 
@@ -22,14 +19,7 @@ public enum DemoAppFactory {
             panelSync: panelSync
         )
         let automation = StickySpacesAutomationAPI(manager: manager, panelSync: panelSync)
-        let server = IPCServer(manager: manager)
-        let transport = ClosureTransport { line in
-            await server.handleLine(line)
-        }
-        return DemoApp(
-            automation: automation,
-            client: StickySpacesClient(transport: transport)
-        )
+        return DemoApp(automation: automation)
     }
 
     public static func makeWithUnavailableYabai() -> DemoApp {
@@ -40,14 +30,7 @@ public enum DemoAppFactory {
             panelSync: panelSync
         )
         let automation = StickySpacesAutomationAPI(manager: manager, panelSync: panelSync)
-        let server = IPCServer(manager: manager)
-        let transport = ClosureTransport { line in
-            await server.handleLine(line)
-        }
-        return DemoApp(
-            automation: automation,
-            client: StickySpacesClient(transport: transport)
-        )
+        return DemoApp(automation: automation)
     }
 }
 

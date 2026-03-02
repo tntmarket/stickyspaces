@@ -1,7 +1,6 @@
 import Foundation
 import Testing
 @testable import StickySpacesApp
-@testable import StickySpacesClient
 @testable import StickySpacesShared
 
 @Suite("Workspace lifecycle and mode handling")
@@ -191,25 +190,11 @@ struct WorkspaceLifecycleTests {
             panelSync: InMemoryPanelSync()
         )
         let server = IPCServer(manager: manager)
-        let client = StickySpacesClient(
-            transport: ClosureTransport { line in
-                await server.handleLine(line)
-            }
-        )
-
-        do {
-            _ = try await client.new(text: "should fail")
-            Issue.record("expected unsupported mode error")
-        } catch let error as StickySpacesClientError {
-            switch error {
-            case .unsupportedMode(let details):
-                #expect(details.command == "new")
-                #expect(details.mode == .singleDisplay)
-                #expect(details.reason.contains("non-primary display"))
-            default:
-                Issue.record("unexpected error: \(error)")
-            }
-        }
+        let response = try await send(request: .new(text: "should fail"), to: server)
+        let details = try unsupportedMode(from: response)
+        #expect(details.command == "new")
+        #expect(details.mode == .singleDisplay)
+        #expect(details.reason.contains("non-primary display"))
     }
 
     @Test("status endpoint transitions from normal to single-display to degraded")
@@ -222,13 +207,7 @@ struct WorkspaceLifecycleTests {
             panelSync: InMemoryPanelSync()
         )
         let server = IPCServer(manager: manager)
-        let client = StickySpacesClient(
-            transport: ClosureTransport { line in
-                await server.handleLine(line)
-            }
-        )
-
-        let normal = try await client.status()
+        let normal = try statusSnapshot(from: try await send(request: .status, to: server))
         #expect(normal.mode == .normal)
 
         await yabai.setTopologySnapshot(
@@ -240,11 +219,40 @@ struct WorkspaceLifecycleTests {
                 primaryDisplayID: 1
             )
         )
-        let singleDisplay = try await client.status()
+        let singleDisplay = try statusSnapshot(from: try await send(request: .status, to: server))
         #expect(singleDisplay.mode == .singleDisplay)
 
         await yabai.setCapabilities(.degraded)
-        let degraded = try await client.status()
+        let degraded = try statusSnapshot(from: try await send(request: .status, to: server))
         #expect(degraded.mode == .degraded)
+    }
+
+    private func send(request: IPCRequest, to server: IPCServer) async throws -> IPCResponse {
+        let requestLine = try IPCWireCodec.encodeRequestLine(request)
+        let responseLine = await server.handleLine(requestLine)
+        return try IPCWireCodec.decodeResponseLine(responseLine)
+    }
+
+    private func statusSnapshot(from response: IPCResponse) throws -> StatusSnapshot {
+        guard case .status(let snapshot) = response else {
+            throw UnexpectedIPCResponseError(expected: ".status", actual: response)
+        }
+        return snapshot
+    }
+
+    private func unsupportedMode(from response: IPCResponse) throws -> UnsupportedModeResponse {
+        guard case .unsupportedMode(let details) = response else {
+            throw UnexpectedIPCResponseError(expected: ".unsupportedMode", actual: response)
+        }
+        return details
+    }
+
+    private struct UnexpectedIPCResponseError: Error, CustomStringConvertible {
+        let expected: String
+        let actual: IPCResponse
+
+        var description: String {
+            "expected \(expected), got \(String(describing: actual))"
+        }
     }
 }

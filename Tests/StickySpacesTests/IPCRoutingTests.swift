@@ -1,7 +1,6 @@
 import Foundation
 import Testing
 @testable import StickySpacesApp
-@testable import StickySpacesClient
 @testable import StickySpacesShared
 
 @Suite("IPC text protocol")
@@ -14,14 +13,8 @@ struct IPCRoutingTests {
             panelSync: InMemoryPanelSync()
         )
         let server = IPCServer(manager: manager)
-        let client = StickySpacesClient(
-            transport: ClosureTransport { line in
-                await server.handleLine(line)
-            }
-        )
-
-        _ = try await client.new(text: "One")
-        let listed = try await client.list(space: nil)
+        _ = try created(from: try await send(request: .new(text: "One"), to: server))
+        let listed = try stickyList(from: try await send(request: .list(space: nil), to: server))
 
         #expect(listed.count == 1)
         #expect(listed[0].text == "One")
@@ -36,15 +29,9 @@ struct IPCRoutingTests {
             panelSync: InMemoryPanelSync()
         )
         let server = IPCServer(manager: manager)
-        let client = StickySpacesClient(
-            transport: ClosureTransport { line in
-                await server.handleLine(line)
-            }
-        )
-
-        let created = try await client.new(text: "Before")
-        try await client.edit(id: created.id, text: "After")
-        let listed = try await client.list(space: nil)
+        let created = try created(from: try await send(request: .new(text: "Before"), to: server))
+        try expectOK(try await send(request: .edit(id: created.id, text: "After"), to: server))
+        let listed = try stickyList(from: try await send(request: .list(space: nil), to: server))
 
         #expect(listed.count == 1)
         #expect(listed[0].text == "After")
@@ -58,16 +45,10 @@ struct IPCRoutingTests {
             panelSync: InMemoryPanelSync()
         )
         let server = IPCServer(manager: manager)
-        let client = StickySpacesClient(
-            transport: ClosureTransport { line in
-                await server.handleLine(line)
-            }
-        )
-
-        let created = try await client.new(text: "Geom")
-        try await client.move(id: created.id, x: 250.5, y: 410.25)
-        try await client.resize(id: created.id, width: 300.75, height: 210.5)
-        let note = try await client.get(id: created.id)
+        let created = try created(from: try await send(request: .new(text: "Geom"), to: server))
+        try expectOK(try await send(request: .move(id: created.id, x: 250.5, y: 410.25), to: server))
+        try expectOK(try await send(request: .resize(id: created.id, width: 300.75, height: 210.5), to: server))
+        let note = try sticky(from: try await send(request: .get(id: created.id), to: server))
 
         #expect(note.position.x == 250.5)
         #expect(note.position.y == 410.25)
@@ -85,20 +66,14 @@ struct IPCRoutingTests {
             panelSync: panelSync
         )
         let server = IPCServer(manager: manager)
-        let client = StickySpacesClient(
-            transport: ClosureTransport { line in
-                await server.handleLine(line)
-            }
-        )
-
-        let first = try await client.new(text: "One")
-        let second = try await client.new(text: "Two")
-        let third = try await client.new(text: "Three")
+        let first = try created(from: try await send(request: .new(text: "One"), to: server))
+        let second = try created(from: try await send(request: .new(text: "Two"), to: server))
+        let third = try created(from: try await send(request: .new(text: "Three"), to: server))
         _ = second
 
-        try await client.dismiss(id: first.id)
+        try expectOK(try await send(request: .dismiss(id: first.id), to: server))
 
-        let listed = try await client.list(space: workspace)
+        let listed = try stickyList(from: try await send(request: .list(space: workspace), to: server))
         let visible = await panelSync.visibleStickyIDs(on: workspace)
 
         #expect(listed.count == 2)
@@ -124,16 +99,11 @@ struct IPCRoutingTests {
             panelSync: InMemoryPanelSync()
         )
         let server = IPCServer(manager: manager)
-        let client = StickySpacesClient(
-            transport: ClosureTransport { line in
-                await server.handleLine(line)
-            }
-        )
 
         let text = "Ship FR-7 polish\n- verify timing\n- publish demo"
-        let created = try await client.new(text: text)
-        try await client.move(id: created.id, x: 120, y: 80)
-        let snapshot = try await client.zoomOut()
+        let created = try created(from: try await send(request: .new(text: text), to: server))
+        try expectOK(try await send(request: .move(id: created.id, x: 120, y: 80), to: server))
+        let snapshot = try canvasSnapshot(from: try await send(request: .zoomOut, to: server))
         let region = try #require(snapshot.regions.first(where: { $0.workspaceID == workspace }))
         let preview = try #require(region.stickyPreviews.first)
 
@@ -162,20 +132,71 @@ struct IPCRoutingTests {
             panelSync: InMemoryPanelSync()
         )
         let server = IPCServer(manager: manager)
-        let client = StickySpacesClient(
-            transport: ClosureTransport { line in
-                await server.handleLine(line)
-            }
-        )
 
         await yabai.setCurrentBinding(.stable(workspaceID: workspace2, displayID: 1, isPrimaryDisplay: true))
-        let sticky = try await client.new(text: "Go here")
+        let sticky = try created(from: try await send(request: .new(text: "Go here"), to: server))
         await yabai.setCurrentBinding(.stable(workspaceID: workspace1, displayID: 1, isPrimaryDisplay: true))
 
-        try await client.navigateFromCanvasClick(stickyID: sticky.id)
-        let status = try await client.status()
+        try expectOK(try await send(request: .navigateFromCanvasClick(stickyID: sticky.id), to: server))
+        let status = try statusSnapshot(from: try await send(request: .status, to: server))
 
         #expect(status.space == workspace2)
         #expect(await yabai.focusedSpaces() == [workspace2])
+    }
+
+    private func send(request: IPCRequest, to server: IPCServer) async throws -> IPCResponse {
+        let requestLine = try IPCWireCodec.encodeRequestLine(request)
+        let responseLine = await server.handleLine(requestLine)
+        return try IPCWireCodec.decodeResponseLine(responseLine)
+    }
+
+    private func expectOK(_ response: IPCResponse) throws {
+        guard case .ok = response else {
+            throw UnexpectedIPCResponseError(expected: ".ok", actual: response)
+        }
+    }
+
+    private func created(from response: IPCResponse) throws -> (id: UUID, workspaceID: WorkspaceID) {
+        guard case .created(let id, let workspaceID) = response else {
+            throw UnexpectedIPCResponseError(expected: ".created", actual: response)
+        }
+        return (id: id, workspaceID: workspaceID)
+    }
+
+    private func stickyList(from response: IPCResponse) throws -> [StickyNote] {
+        guard case .stickyList(let notes) = response else {
+            throw UnexpectedIPCResponseError(expected: ".stickyList", actual: response)
+        }
+        return notes
+    }
+
+    private func sticky(from response: IPCResponse) throws -> StickyNote {
+        guard case .sticky(let note) = response else {
+            throw UnexpectedIPCResponseError(expected: ".sticky", actual: response)
+        }
+        return note
+    }
+
+    private func canvasSnapshot(from response: IPCResponse) throws -> CanvasSnapshot {
+        guard case .canvasSnapshot(let snapshot) = response else {
+            throw UnexpectedIPCResponseError(expected: ".canvasSnapshot", actual: response)
+        }
+        return snapshot
+    }
+
+    private func statusSnapshot(from response: IPCResponse) throws -> StatusSnapshot {
+        guard case .status(let status) = response else {
+            throw UnexpectedIPCResponseError(expected: ".status", actual: response)
+        }
+        return status
+    }
+
+    private struct UnexpectedIPCResponseError: Error, CustomStringConvertible {
+        let expected: String
+        let actual: IPCResponse
+
+        var description: String {
+            "expected \(expected), got \(String(describing: actual))"
+        }
     }
 }

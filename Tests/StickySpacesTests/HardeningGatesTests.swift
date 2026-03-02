@@ -1,7 +1,6 @@
 import Foundation
 import Testing
 @testable import StickySpacesApp
-@testable import StickySpacesClient
 @testable import StickySpacesCLI
 @testable import StickySpacesShared
 
@@ -112,8 +111,17 @@ struct HardeningGatesTests {
 
     @Test("IPC protocol skew is rejected with explicit compatibility envelope")
     func ipcProtocolSkewRejected() async throws {
-        let app = DemoAppFactory.makeReady()
-        let response = try await app.client.handshake(protocolVersion: IPCServer.protocolVersion + 1)
+        let manager = StickyManager(
+            store: StickyStore(),
+            yabai: FakeYabaiQuerying(currentSpace: WorkspaceID(rawValue: 1)),
+            panelSync: InMemoryPanelSync()
+        )
+        let server = IPCServer(manager: manager)
+        let requestLine = try IPCWireCodec.encodeRequestLine(
+            .hello(protocolVersion: IPCServer.protocolVersion + 1)
+        )
+        let responseLine = await server.handleLine(requestLine)
+        let response = try IPCWireCodec.decodeResponseLine(responseLine)
 
         guard case .protocolMismatch(let server, let minClient, let message) = response else {
             Issue.record("expected protocol mismatch response")
@@ -183,12 +191,12 @@ struct HardeningGatesTests {
     @Test("session restart clears in-memory sticky state")
     func sessionRestartClearsState() async throws {
         let firstSession = DemoAppFactory.makeReady()
-        _ = try await firstSession.client.new(text: "session scoped")
-        let firstList = try await firstSession.client.list(space: nil)
+        _ = try await createStickyResult(text: "session scoped", app: firstSession)
+        let firstList = try await listStickies(app: firstSession)
         #expect(firstList.count == 1)
 
         let secondSession = DemoAppFactory.makeReady()
-        let secondList = try await secondSession.client.list(space: nil)
+        let secondList = try await listStickies(app: secondSession)
         #expect(secondList.isEmpty)
     }
 
@@ -218,5 +226,29 @@ struct HardeningGatesTests {
         let signal = NightlyPerformanceGate.evaluate(report: failingReport)
         #expect(signal.releaseBlocking)
         #expect(signal.failures.count == 3)
+    }
+
+    private func createStickyResult(text: String, app: DemoApp) async throws -> StickyCreateResult {
+        let response = try await app.automation.perform(.createSticky(text: text))
+        guard case .created(let created) = response else {
+            throw NSError(
+                domain: "HardeningGatesTests",
+                code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "expected createSticky to return .created"]
+            )
+        }
+        return created
+    }
+
+    private func listStickies(app: DemoApp) async throws -> [StickyNote] {
+        let response = try await app.automation.perform(.listStickies(space: nil))
+        guard case .stickyList(let notes) = response else {
+            throw NSError(
+                domain: "HardeningGatesTests",
+                code: 2,
+                userInfo: [NSLocalizedDescriptionKey: "expected listStickies to return .stickyList"]
+            )
+        }
+        return notes
     }
 }

@@ -108,6 +108,40 @@ struct IPCRoutingTests {
         #expect(visible.contains(third.id))
     }
 
+    @Test("zoom-out IPC includes sticky previews for intent panel")
+    func zoomOutIncludesStickyPreviewsForIntentPanel() async throws {
+        let workspace = WorkspaceID(rawValue: 3)
+        let yabai = FakeYabaiQuerying(currentSpace: workspace)
+        await yabai.setTopologySnapshot(
+            WorkspaceTopologySnapshot(
+                spaces: [WorkspaceDescriptor(workspaceID: workspace, index: 1, displayID: 1)],
+                primaryDisplayID: 1
+            )
+        )
+        let manager = StickyManager(
+            store: StickyStore(),
+            yabai: yabai,
+            panelSync: InMemoryPanelSync()
+        )
+        let server = IPCServer(manager: manager)
+        let client = StickySpacesClient(
+            transport: ClosureTransport { line in
+                await server.handleLine(line)
+            }
+        )
+
+        let text = "Ship FR-7 polish\n- verify timing\n- publish demo"
+        let created = try await client.new(text: text)
+        try await client.move(id: created.id, x: 120, y: 80)
+        let snapshot = try await client.zoomOut()
+        let region = try #require(snapshot.regions.first(where: { $0.workspaceID == workspace }))
+        let preview = try #require(region.stickyPreviews.first)
+
+        #expect(preview.id == created.id)
+        #expect(preview.text == text)
+        #expect(preview.displayHeader == "Ship FR-7 polish")
+    }
+
     @Test("test_navigateFromCanvas_clickSticky_switchesWorkspace")
     func test_navigateFromCanvas_clickSticky_switchesWorkspace() async throws {
         let workspace1 = WorkspaceID(rawValue: 1)

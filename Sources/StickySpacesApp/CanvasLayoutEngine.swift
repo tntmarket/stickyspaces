@@ -36,24 +36,22 @@ public enum CanvasLayoutEngine {
         activeWorkspaceID: WorkspaceID?,
         viewport: CanvasViewportState
     ) -> CanvasSnapshot {
-        let stickyCounts: [WorkspaceID: Int] = Dictionary(
-            grouping: stickies,
-            by: \.workspaceID
-        ).reduce(into: [:]) { partialResult, element in
-            partialResult[element.key] = element.value.count
-        }
+        let stickiesByWorkspace = Dictionary(grouping: stickies, by: \.workspaceID)
+        let stickyCounts: [WorkspaceID: Int] = stickiesByWorkspace.mapValues(\.count)
         let sortedWorkspaces = workspaces.sorted { $0.workspaceID.rawValue < $1.workspaceID.rawValue }
         let regions: [CanvasRegionSnapshot] = sortedWorkspaces.compactMap { descriptor in
             guard let origin = layout.workspacePositions[descriptor.workspaceID] else {
                 return nil
             }
             let frame = CGRect(origin: origin, size: regionSize)
+            let stickyPreviews = makeStickyPreviews(for: stickiesByWorkspace[descriptor.workspaceID] ?? [])
             return CanvasRegionSnapshot(
                 workspaceID: descriptor.workspaceID,
                 displayID: descriptor.displayID,
                 frame: frame,
                 stickyCount: stickyCounts[descriptor.workspaceID, default: 0],
-                isActive: descriptor.workspaceID == activeWorkspaceID
+                isActive: descriptor.workspaceID == activeWorkspaceID,
+                stickyPreviews: stickyPreviews
             )
         }
 
@@ -63,6 +61,31 @@ public enum CanvasLayoutEngine {
             regions: regions,
             invariants: invariantChecks(regions: regions, activeWorkspaceID: activeWorkspaceID)
         )
+    }
+
+    private static func makeStickyPreviews(for notes: [StickyNote]) -> [CanvasStickyPreview] {
+        guard !notes.isEmpty else {
+            return []
+        }
+
+        let maxX = notes.map { $0.position.x + max(1, $0.size.width) }.max() ?? regionSize.width
+        let maxY = notes.map { $0.position.y + max(1, $0.size.height) }.max() ?? regionSize.height
+        let workspaceWidth = max(1, max(regionSize.width, maxX))
+        let workspaceHeight = max(1, max(regionSize.height, maxY))
+
+        return notes
+            .sorted { $0.createdAt < $1.createdAt }
+            .map { note in
+                CanvasStickyPreview(
+                    id: note.id,
+                    text: note.text,
+                    header: note.header,
+                    x: Double(note.position.x / workspaceWidth),
+                    y: Double(note.position.y / workspaceHeight),
+                    width: Double(note.size.width / workspaceWidth),
+                    height: Double(note.size.height / workspaceHeight)
+                )
+            }
     }
 
     private static func nextDefaultPosition(occupied: [CGPoint]) -> CGPoint {

@@ -103,8 +103,18 @@ enum StickySpacesUIE2ERunner {
             let first = try await manager.createSticky(text: "FR-7 A")
             try await manager.updateStickyPosition(id: first.sticky.id, x: 210, y: 640)
             await yabai.setCurrentBinding(.stable(workspaceID: workspace2, displayID: 1, isPrimaryDisplay: true))
-            let second = try await manager.createSticky(text: "FR-7 B")
+            let second = try await manager.createSticky(text: "FR-7 Draft")
             try await manager.updateStickyPosition(id: second.sticky.id, x: 280, y: 420)
+            try? await Task.sleep(for: .milliseconds(650))
+            try await manager.updateStickyText(
+                id: second.sticky.id,
+                text: """
+                Ship launch polish
+                - verify FR-7 timing
+                - regenerate marketing capture
+                """
+            )
+            try? await Task.sleep(for: .milliseconds(450))
             await showOnlyWorkspace(manager: manager, panelSync: panelSync, workspaceID: workspace2)
             let snapshot = try await manager.zoomOutSnapshot()
             print("zoom-out regions=\(snapshot.regions.count) active=\(snapshot.activeWorkspaceID?.rawValue.description ?? "none")")
@@ -375,33 +385,70 @@ private final class CanvasMarketingView: NSView {
         let canvasBounds = regionUnionBounds()
         let base = centeredBase(bounds: bounds, content: canvasBounds, scale: displayScale)
         var activeRegion: CanvasRegionSnapshot?
-        var activeRegionRect: CGRect?
+        var activeLayout: WorkspaceOverviewCardLayout?
         for region in snapshot.regions {
             let transformed = transformedRect(region.frame, base: base, scale: displayScale, pan: panOffset)
-            let rect = adjustedWorkspaceRectForSnapshotAspect(transformed)
+            let workspaceRect = adjustedWorkspaceRectForSnapshotAspect(transformed)
+            let layout = WorkspaceOverviewCardLayout.make(
+                workspaceRect: workspaceRect,
+                stickyPreviews: region.stickyPreviews,
+                scale: Double(displayScale)
+            )
             if region.isActive {
                 activeRegion = region
-                activeRegionRect = rect
+                activeLayout = layout
                 continue
             }
-            drawRegion(region, in: rect, hidePrimaryStickyMarker: false)
+            drawWorkspaceCard(region, layout: layout, hidePrimaryStickyMarker: false)
         }
 
-        if let activeRegionRect, let desktopSnapshotImage {
+        if activeRegion != nil, let activeLayout, let desktopSnapshotImage {
             drawDesktopWorkspaceSnapshot(
                 desktopSnapshotImage,
-                in: activeRegionRect
+                in: activeLayout.workspaceRect
             )
-        } else if let activeRegion, let activeRegionRect {
-            drawRegion(
+            drawIntentLabel(layout: activeLayout, isActive: true)
+        } else if let activeRegion, let activeLayout {
+            drawWorkspaceCard(
                 activeRegion,
-                in: activeRegionRect,
+                layout: activeLayout,
                 hidePrimaryStickyMarker: heroStartRect != nil
             )
-            if let heroRect = currentHeroRect() {
+            if heroStartRect != nil, let heroRect = currentHeroRect() {
                 drawHeroSticky(in: heroRect)
             }
         }
+    }
+
+    private func drawWorkspaceCard(
+        _ region: CanvasRegionSnapshot,
+        layout: WorkspaceOverviewCardLayout,
+        hidePrimaryStickyMarker: Bool
+    ) {
+        drawRegion(region, in: layout.workspaceRect, hidePrimaryStickyMarker: hidePrimaryStickyMarker)
+        drawIntentLabel(layout: layout, isActive: region.isActive)
+    }
+
+    private func drawIntentLabel(layout: WorkspaceOverviewCardLayout, isActive: Bool) {
+        guard let labelText = layout.labelText, labelText.isEmpty == false else {
+            return
+        }
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.lineBreakMode = .byTruncatingTail
+        paragraph.alignment = .left
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: 11, weight: .medium),
+            .foregroundColor: (
+                isActive
+                    ? NSColor(calibratedWhite: 0.98, alpha: 0.96)
+                    : NSColor(calibratedWhite: 0.84, alpha: 0.9)
+            ),
+            .paragraphStyle: paragraph
+        ]
+        NSString(string: labelText).draw(
+            in: layout.intentLabelRect,
+            withAttributes: attributes
+        )
     }
 
     func panOffsetCenteringActiveWorkspace(scale: CGFloat) -> CGPoint {
@@ -544,13 +591,48 @@ private final class CanvasMarketingView: NSView {
         border.lineWidth = region.isActive ? 3 : 1.5
         border.stroke()
 
-        let markerCount: Int
-        if hidePrimaryStickyMarker && region.isActive && region.stickyCount > 0 {
-            markerCount = max(0, region.stickyCount - 1)
-        } else {
-            markerCount = region.stickyCount
+        var previews = region.stickyPreviews
+        if hidePrimaryStickyMarker && region.isActive && !previews.isEmpty {
+            previews.removeLast()
         }
-        for idx in 0..<min(markerCount, 5) {
+        if previews.isEmpty {
+            drawFallbackStickyMarkers(count: region.stickyCount, in: rect)
+            return
+        }
+        drawStickyPreviewMarkers(previews, in: rect)
+    }
+
+    private func drawStickyPreviewMarkers(_ previews: [CanvasStickyPreview], in rect: CGRect) {
+        for preview in previews.prefix(8) {
+            let markerWidth = min(
+                max(14, rect.width * CGFloat(preview.width) * 0.36),
+                rect.width * 0.30
+            )
+            let markerHeight = min(
+                max(12, rect.height * CGFloat(preview.height) * 0.36),
+                rect.height * 0.22
+            )
+            let markerX = rect.minX + (CGFloat(preview.x) * (rect.width - markerWidth))
+            let markerY = rect.minY + (CGFloat(preview.y) * (rect.height - markerHeight))
+            let noteRect = CGRect(
+                x: markerX,
+                y: markerY,
+                width: markerWidth,
+                height: markerHeight
+            )
+            let note = NSBezierPath(roundedRect: noteRect, xRadius: 4, yRadius: 4)
+            NSColor(calibratedRed: 1.0, green: 0.95, blue: 0.72, alpha: 0.97).setFill()
+            note.fill()
+
+            let border = NSBezierPath(roundedRect: noteRect, xRadius: 4, yRadius: 4)
+            NSColor(calibratedWhite: 0.70, alpha: 0.7).setStroke()
+            border.lineWidth = 0.8
+            border.stroke()
+        }
+    }
+
+    private func drawFallbackStickyMarkers(count: Int, in rect: CGRect) {
+        for idx in 0..<min(count, 5) {
             let noteRect = CGRect(
                 x: rect.minX + 18 + CGFloat(idx * 28),
                 y: rect.maxY - 62,

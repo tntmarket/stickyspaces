@@ -216,6 +216,157 @@ struct CanvasLayoutTests {
         }
     }
 
+    @Test("test_zoomOutSnapshot_emitsStickyPreviews_withFullTextAndNormalizedGeometry")
+    func test_zoomOutSnapshot_emitsStickyPreviews_withFullTextAndNormalizedGeometry() async throws {
+        let workspace = WorkspaceID(rawValue: 2)
+        let yabai = FakeYabaiQuerying(currentSpace: workspace)
+        await yabai.setTopologySnapshot(
+            WorkspaceTopologySnapshot(
+                spaces: [WorkspaceDescriptor(workspaceID: workspace, index: 1, displayID: 1)],
+                primaryDisplayID: 1
+            )
+        )
+        let manager = StickyManager(
+            store: StickyStore(),
+            yabai: yabai,
+            panelSync: InMemoryPanelSync()
+        )
+
+        let text = """
+        Ship FR-7 polish
+        - verify timing
+        - publish demo
+        """
+        let created = try await manager.createSticky(text: text)
+        try await manager.updateStickyPosition(id: created.sticky.id, x: 120, y: 80)
+        try await manager.updateStickySize(id: created.sticky.id, width: 240, height: 120)
+
+        let snapshot = try await manager.zoomOutSnapshot()
+        let region = try #require(snapshot.regions.first)
+        let preview = try #require(region.stickyPreviews.first)
+
+        #expect(preview.id == created.sticky.id)
+        #expect(preview.text == text)
+        #expect(preview.header == nil)
+        #expect(preview.displayHeader == "Ship FR-7 polish")
+        #expect(preview.x == 0.25)
+        #expect(preview.y == 0.25)
+        #expect(preview.width == 0.5)
+        #expect(preview.height == 0.375)
+    }
+
+    @Test("test_zoomOutSnapshot_preservesStickyRelativeGeometryWithinWorkspace")
+    func test_zoomOutSnapshot_preservesStickyRelativeGeometryWithinWorkspace() async throws {
+        let workspace = WorkspaceID(rawValue: 4)
+        let yabai = FakeYabaiQuerying(currentSpace: workspace)
+        await yabai.setTopologySnapshot(
+            WorkspaceTopologySnapshot(
+                spaces: [WorkspaceDescriptor(workspaceID: workspace, index: 1, displayID: 1)],
+                primaryDisplayID: 1
+            )
+        )
+        let manager = StickyManager(
+            store: StickyStore(),
+            yabai: yabai,
+            panelSync: InMemoryPanelSync()
+        )
+
+        let left = try await manager.createSticky(text: "Left")
+        try await manager.updateStickyPosition(id: left.sticky.id, x: 80, y: 90)
+        let right = try await manager.createSticky(text: "Right")
+        try await manager.updateStickyPosition(id: right.sticky.id, x: 260, y: 210)
+
+        let snapshot = try await manager.zoomOutSnapshot()
+        let region = try #require(snapshot.regions.first)
+        let leftPreview = try #require(region.stickyPreviews.first(where: { $0.id == left.sticky.id }))
+        let rightPreview = try #require(region.stickyPreviews.first(where: { $0.id == right.sticky.id }))
+
+        #expect(leftPreview.x < rightPreview.x)
+        #expect(leftPreview.y < rightPreview.y)
+        #expect(leftPreview.width > 0)
+        #expect(rightPreview.width > 0)
+    }
+
+    @Test("test_overviewLayout_placesMinimalIntentLabelBelowWorkspace")
+    func test_overviewLayout_placesMinimalIntentLabelBelowWorkspace() async throws {
+        let workspaceRect = CGRect(x: 120, y: 320, width: 480, height: 320)
+        let stickyPreviews = [
+            CanvasStickyPreview(
+                id: UUID(),
+                text: "Ship FR-7 polish\n- verify timing\n- publish demo",
+                header: nil,
+                x: 0.25,
+                y: 0.25,
+                width: 0.5,
+                height: 0.375
+            )
+        ]
+
+        let layout = WorkspaceOverviewCardLayout.make(
+            workspaceRect: workspaceRect,
+            stickyPreviews: stickyPreviews,
+            scale: CanvasViewportState.defaultOverview.zoomScale
+        )
+
+        #expect(layout.workspaceRect == workspaceRect)
+        #expect(layout.intentLabelRect.maxY == layout.workspaceRect.minY - WorkspaceOverviewCardLayout.labelGap)
+        #expect(layout.cardRect.contains(layout.workspaceRect))
+        #expect(layout.cardRect.contains(layout.intentLabelRect))
+        #expect(layout.labelText == "Ship FR-7 polish")
+    }
+
+    @Test("test_intentPanel_headerFallback_usesFirstLineWhenHeaderMissing")
+    func test_intentPanel_headerFallback_usesFirstLineWhenHeaderMissing() async throws {
+        let withoutHeader = CanvasStickyPreview(
+            id: UUID(),
+            text: "\n   \nPlan launch sequence\n- verify",
+            header: nil,
+            x: 0,
+            y: 0,
+            width: 1,
+            height: 1
+        )
+        #expect(withoutHeader.displayHeader == "Plan launch sequence")
+
+        let explicitHeader = CanvasStickyPreview(
+            id: UUID(),
+            text: "Body text",
+            header: "Pinned Header",
+            x: 0,
+            y: 0,
+            width: 1,
+            height: 1
+        )
+        #expect(explicitHeader.displayHeader == "Pinned Header")
+    }
+
+    @Test("test_overviewReadOnly_doesNotMutateStickyTextOrPosition")
+    func test_overviewReadOnly_doesNotMutateStickyTextOrPosition() async throws {
+        let workspace = WorkspaceID(rawValue: 9)
+        let yabai = FakeYabaiQuerying(currentSpace: workspace)
+        await yabai.setTopologySnapshot(
+            WorkspaceTopologySnapshot(
+                spaces: [WorkspaceDescriptor(workspaceID: workspace, index: 1, displayID: 1)],
+                primaryDisplayID: 1
+            )
+        )
+        let manager = StickyManager(
+            store: StickyStore(),
+            yabai: yabai,
+            panelSync: InMemoryPanelSync()
+        )
+
+        let created = try await manager.createSticky(text: "Immutable")
+        try await manager.updateStickyPosition(id: created.sticky.id, x: 222, y: 333)
+        let before = await manager.list(space: workspace)
+
+        _ = try await manager.zoomOutSnapshot()
+        _ = try await manager.zoomOutSnapshot()
+        let after = await manager.list(space: workspace)
+
+        #expect(before == after)
+    }
+
     @Test("test_navigateFromCanvas_clickSticky_focusesTargetWorkspace")
     func test_navigateFromCanvas_clickSticky_focusesTargetWorkspace() async throws {
         let workspace1 = WorkspaceID(rawValue: 1)

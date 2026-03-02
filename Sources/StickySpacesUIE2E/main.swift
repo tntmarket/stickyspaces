@@ -110,7 +110,6 @@ enum StickySpacesUIE2ERunner {
             print("zoom-out regions=\(snapshot.regions.count) active=\(snapshot.activeWorkspaceID?.rawValue.description ?? "none")")
             await showCanvasExperience(
                 snapshot: snapshot,
-                title: "StickySpaces Canvas",
                 manager: manager,
                 panelSync: panelSync
             )
@@ -133,7 +132,6 @@ enum StickySpacesUIE2ERunner {
             let snapshot = try await manager.zoomOutSnapshot()
             await showCanvasExperience(
                 snapshot: snapshot,
-                title: "StickySpaces Canvas",
                 manager: manager,
                 panelSync: panelSync
             )
@@ -146,7 +144,6 @@ enum StickySpacesUIE2ERunner {
             print("active-workspace-highlight=\(snapshot.activeWorkspaceID?.rawValue.description ?? "none")")
             await showCanvasExperience(
                 snapshot: snapshot,
-                title: "StickySpaces Canvas",
                 manager: manager,
                 panelSync: panelSync
             )
@@ -196,7 +193,6 @@ enum StickySpacesUIE2ERunner {
 
     private static func showCanvasExperience(
         snapshot: CanvasSnapshot,
-        title: String,
         manager: StickyManager,
         panelSync: AppKitPanelSync
     ) async {
@@ -207,7 +203,7 @@ enum StickySpacesUIE2ERunner {
             canvasWindowController = existing
             return existing
         }
-        await controller.prepare(snapshot: snapshot, title: title, heroSticky: heroSticky)
+        await controller.prepare(snapshot: snapshot, heroSticky: heroSticky)
         await hideAllVisiblePanels(manager: manager, panelSync: panelSync)
         await controller.animateZoomOut()
     }
@@ -260,7 +256,7 @@ private final class CanvasMarketingWindowController {
         panel.contentView = canvasView
     }
 
-    func prepare(snapshot: CanvasSnapshot, title: String, heroSticky: StickyNote?) async {
+    func prepare(snapshot: CanvasSnapshot, heroSticky: StickyNote?) async {
         if let screenFrame = NSScreen.main?.frame {
             panel.setFrame(screenFrame, display: true)
             canvasView.frame = panel.contentView?.bounds ?? canvasView.frame
@@ -268,7 +264,6 @@ private final class CanvasMarketingWindowController {
         panel.orderOut(nil)
         canvasView.setDesktopSnapshot(CGDisplayCreateImage(CGMainDisplayID()))
         canvasView.snapshot = snapshot
-        canvasView.titleText = title
         let endScale: CGFloat = max(0.2, CGFloat(snapshot.viewport.zoomScale))
         let endPan = CGPoint(x: snapshot.viewport.panOffset.x, y: snapshot.viewport.panOffset.y)
         let heroStartRect = heroSticky.map { sticky in
@@ -351,7 +346,6 @@ private final class CanvasMarketingView: NSView {
     )
     var displayScale: CGFloat = 1
     var panOffset: CGPoint = .zero
-    var titleText = "StickySpaces Canvas"
     var transitionProgress: CGFloat = 1
 
     private var heroStartRect: CGRect?
@@ -393,15 +387,10 @@ private final class CanvasMarketingView: NSView {
             drawRegion(region, in: rect, hidePrimaryStickyMarker: false)
         }
 
-        if
-            let activeRegion,
-            let activeRegionRect,
-            let desktopSnapshotImage
-        {
+        if let activeRegionRect, let desktopSnapshotImage {
             drawDesktopWorkspaceSnapshot(
                 desktopSnapshotImage,
-                in: activeRegionRect,
-                label: "Workspace \(activeRegion.workspaceID.rawValue)"
+                in: activeRegionRect
             )
         } else if let activeRegion, let activeRegionRect {
             drawRegion(
@@ -413,8 +402,6 @@ private final class CanvasMarketingView: NSView {
                 drawHeroSticky(in: heroRect)
             }
         }
-
-        drawTitleAndLegend()
     }
 
     func panOffsetCenteringActiveWorkspace(scale: CGFloat) -> CGPoint {
@@ -557,13 +544,6 @@ private final class CanvasMarketingView: NSView {
         border.lineWidth = region.isActive ? 3 : 1.5
         border.stroke()
 
-        let label = "Workspace \(region.workspaceID.rawValue)"
-        let labelAttrs: [NSAttributedString.Key: Any] = [
-            .font: NSFont.boldSystemFont(ofSize: max(12, rect.height * 0.055)),
-            .foregroundColor: NSColor.white
-        ]
-        label.draw(at: CGPoint(x: rect.minX + 14, y: rect.maxY - 34), withAttributes: labelAttrs)
-
         let markerCount: Int
         if hidePrimaryStickyMarker && region.isActive && region.stickyCount > 0 {
             markerCount = max(0, region.stickyCount - 1)
@@ -594,7 +574,7 @@ private final class CanvasMarketingView: NSView {
         border.stroke()
     }
 
-    private func drawDesktopWorkspaceSnapshot(_ image: NSImage, in rect: CGRect, label: String) {
+    private func drawDesktopWorkspaceSnapshot(_ image: NSImage, in rect: CGRect) {
         let t = max(0, min(1, transitionProgress))
         let cornerRadius = interpolate(from: 0, to: 18, progress: t)
 
@@ -608,12 +588,6 @@ private final class CanvasMarketingView: NSView {
         NSColor(calibratedRed: 0.72, green: 0.84, blue: 1.0, alpha: 1).setStroke()
         border.lineWidth = interpolate(from: 2.2, to: 3.0, progress: t)
         border.stroke()
-
-        let labelAttrs: [NSAttributedString.Key: Any] = [
-            .font: NSFont.boldSystemFont(ofSize: max(12, rect.height * 0.055)),
-            .foregroundColor: NSColor.white
-        ]
-        label.draw(at: CGPoint(x: rect.minX + 14, y: rect.maxY - 34), withAttributes: labelAttrs)
     }
 
     private func adjustedWorkspaceRectForSnapshotAspect(_ rect: CGRect) -> CGRect {
@@ -645,21 +619,6 @@ private final class CanvasMarketingView: NSView {
             width: rect.width,
             height: height
         )
-    }
-
-    private func drawTitleAndLegend() {
-        let titleAttrs: [NSAttributedString.Key: Any] = [
-            .font: NSFont.systemFont(ofSize: 22, weight: .semibold),
-            .foregroundColor: NSColor(calibratedWhite: 0.96, alpha: 1)
-        ]
-        titleText.draw(at: CGPoint(x: 36, y: bounds.maxY - 46), withAttributes: titleAttrs)
-
-        let legend = "Active workspace highlighted in blue"
-        let legendAttrs: [NSAttributedString.Key: Any] = [
-            .font: NSFont.systemFont(ofSize: 13, weight: .regular),
-            .foregroundColor: NSColor(calibratedWhite: 0.85, alpha: 1)
-        ]
-        legend.draw(at: CGPoint(x: 38, y: bounds.maxY - 74), withAttributes: legendAttrs)
     }
 
     private func interpolate(from: CGFloat, to: CGFloat, progress: CGFloat) -> CGFloat {

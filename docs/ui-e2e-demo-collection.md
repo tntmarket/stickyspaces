@@ -26,6 +26,7 @@ Videos are written to:
 
 - `artifacts/ui-demos/<scenario-id>/<scenario-id>.mov`
 - `artifacts/ui-demos/<scenario-id>/<scenario-id>.inspect.mp4`
+- `artifacts/ui-demos/<scenario-id>/<scenario-id>.diagnostics.json`
 
 Each rerun overwrites assets for that scenario path.
 
@@ -50,7 +51,11 @@ Analysis output is written to:
 
 ## Notes
 
-- Recording uses macOS `screencapture -v`.
+- Recording uses `stickyspaces-ui-recorder` with a ScreenCaptureKit-first backend.
+- Backend selection:
+  - `CAPTURE_BACKEND=auto` (default): try ScreenCaptureKit, fallback to `screencapture`.
+  - `CAPTURE_BACKEND=sckit`: require ScreenCaptureKit.
+  - `CAPTURE_BACKEND=screencapture`: force legacy recorder.
 - First run may prompt for Screen Recording permissions.
 - Frame extraction/reporting uses `ffmpeg`/`ffprobe`.
 - Use the optional display argument if you need a non-main monitor:

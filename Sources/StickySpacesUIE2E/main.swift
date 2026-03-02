@@ -34,7 +34,7 @@ enum StickySpacesUIE2ERunner {
         print("SCENARIO_ACTIONS_COMPLETE scenario=\(config.scenario.rawValue)")
         fflush(stdout)
 
-        let deadline = Date().addingTimeInterval(config.durationSeconds)
+        let deadline = Date().addingTimeInterval(config.postActionsHoldSeconds)
         while Date() < deadline {
             try? await Task.sleep(for: .milliseconds(100))
         }
@@ -915,12 +915,14 @@ private final class CanvasMarketingView: NSView {
 
 private struct RunnerConfig {
     let durationSeconds: TimeInterval
+    let postActionsHoldSeconds: TimeInterval
     let scenario: UIScenario
     let workspaceID: Int
     let showHelp: Bool
 
     init(arguments: [String]) {
         var durationSeconds: TimeInterval = 20
+        var postActionsHoldSeconds: TimeInterval?
         var scenario: UIScenario = .createStickyCurrentWorkspace
         var workspaceID = 1
         var showHelp = false
@@ -944,6 +946,11 @@ private struct RunnerConfig {
                     workspaceID = max(1, value)
                     index += 1
                 }
+            case "--post-actions-hold-seconds":
+                if index + 1 < arguments.count, let value = Double(arguments[index + 1]) {
+                    postActionsHoldSeconds = max(0, value)
+                    index += 1
+                }
             case "-h", "--help":
                 showHelp = true
             default:
@@ -953,6 +960,7 @@ private struct RunnerConfig {
         }
 
         self.durationSeconds = durationSeconds
+        self.postActionsHoldSeconds = postActionsHoldSeconds ?? durationSeconds
         self.scenario = scenario
         self.workspaceID = workspaceID
         self.showHelp = showHelp
@@ -961,6 +969,9 @@ private struct RunnerConfig {
     static let helpText = """
     stickyspaces-ui-e2e options:
       --duration <seconds>       Total time to keep stickies visible (default: 20)
+      --post-actions-hold-seconds <seconds>
+                                Time to keep stickies visible after scenario actions complete.
+                                Defaults to --duration when omitted.
       --scenario <case-id>       One of: \(UIScenario.allCases.map(\.rawValue).joined(separator: ", "))
       --workspace <id>           Fake workspace id for the demo (default: 1)
     """

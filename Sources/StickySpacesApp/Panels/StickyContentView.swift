@@ -260,8 +260,8 @@ final class StickyContentView: NSView {
             return NSPoint(x: cx + dx * cosA - dy * sinA, y: cy + dx * sinA + dy * cosA)
         }
 
-        let t1 = [NSPoint(x: 1.5, y: 9.5), NSPoint(x: 7.5, y: 12.5), NSPoint(x: 7.5, y: 6.5)].map(rotate)
-        let t2 = [NSPoint(x: 17.5, y: 9.5), NSPoint(x: 11.5, y: 12.5), NSPoint(x: 11.5, y: 6.5)].map(rotate)
+        let t1 = [NSPoint(x: 1.5, y: 9.5), NSPoint(x: 7, y: 12.5), NSPoint(x: 7, y: 6.5)].map(rotate)
+        let t2 = [NSPoint(x: 17.5, y: 9.5), NSPoint(x: 12, y: 12.5), NSPoint(x: 12, y: 6.5)].map(rotate)
 
         let size = NSSize(width: 20, height: 20)
         let image = NSImage(size: size, flipped: false) { _ in

@@ -12,6 +12,7 @@ final class DragStripView: NSView {
 
     let stickyID: UUID
     weak var delegate: StickyPanelDelegate?
+    let dismissButton = DismissButton(frame: .zero)
 
     private var initialMouseLocation: NSPoint = .zero
     private var initialWindowOrigin: NSPoint = .zero
@@ -22,6 +23,22 @@ final class DragStripView: NSView {
         super.init(frame: .zero)
         wantsLayer = true
         layer?.backgroundColor = Self.backgroundColor.cgColor
+
+        dismissButton.target = self
+        dismissButton.action = #selector(dismissClicked)
+        dismissButton.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(dismissButton)
+
+        NSLayoutConstraint.activate([
+            dismissButton.widthAnchor.constraint(equalToConstant: DismissButton.size),
+            dismissButton.heightAnchor.constraint(equalToConstant: DismissButton.size),
+            dismissButton.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -4),
+            dismissButton.centerYAnchor.constraint(equalTo: centerYAnchor),
+        ])
+    }
+
+    @objc private func dismissClicked() {
+        delegate?.stickyPanelDidRequestDismiss(stickyID)
     }
 
     @available(*, unavailable)

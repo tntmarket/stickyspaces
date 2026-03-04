@@ -143,6 +143,7 @@ struct ZoomOutCanvasOverviewJourneyTests {
         _ = try await session.harness.step(.wait(milliseconds: 220))
 
         let snapshot = try await session.harness.prepareZoomOutOverlay()
+        let captureResult = await session.harness.backgroundCaptureResult()
         let firstFrame = try await session.harness.captureScreenshot(name: "final-frame-start")
         _ = try await session.harness.animatePreparedZoomOutOverlayCollectingMetrics()
         let finalFrame = try await session.harness.captureScreenshot(name: "final-frame-end")
@@ -163,9 +164,10 @@ struct ZoomOutCanvasOverviewJourneyTests {
 
         #expect(snapshot.regions.count >= 2)
         #expect(snapshot.regions.allSatisfy { $0.thumbnail.displayID != nil })
+        #expect(captureResult?.source == .liveCapture)
         #expect(transitionDiff.changedPixelRatio >= 0.08)
-        #expect(visualStats.quantizedColorCount >= 18)
-        #expect(visualStats.luminanceStdDev >= 6)
+        #expect(visualStats.quantizedColorCount >= 32)
+        #expect(visualStats.luminanceStdDev >= 12)
     }
 
     @Test("zoom-out does not switch workspace")

@@ -177,6 +177,9 @@ private final class ZoomOutOverviewWindowController {
 
         let capturedImage = captureProvider.captureMainDisplay()
         view.backgroundSnapshotImage = capturedImage
+        if let capturedImage, let activeID = snapshot.activeWorkspaceID {
+            view.regionThumbnails[activeID] = capturedImage
+        }
         let captureResult = BackgroundCaptureResult.from(capturedImage: capturedImage)
 
         preparedHeroSticky = heroSticky
@@ -314,6 +317,7 @@ private final class ZoomOutOverviewView: NSView {
     var panOffset: CGPoint = .zero
     var transitionProgress: CGFloat = 1
     var backgroundSnapshotImage: CGImage?
+    var regionThumbnails: [WorkspaceID: CGImage] = [:]
 
     override func draw(_ dirtyRect: NSRect) {
         if let context = NSGraphicsContext.current?.cgContext,
@@ -387,21 +391,30 @@ private final class ZoomOutOverviewView: NSView {
     }
 
     private func drawRegion(_ region: CanvasRegionSnapshot, in frame: CGRect) {
-        let path = NSBezierPath(roundedRect: frame, xRadius: 16, yRadius: 16)
+        let clipPath = NSBezierPath(roundedRect: frame, xRadius: 16, yRadius: 16)
+
+        if let thumbnail = regionThumbnails[region.workspaceID],
+           let context = NSGraphicsContext.current?.cgContext {
+            context.saveGState()
+            clipPath.addClip()
+            context.interpolationQuality = .high
+            context.draw(thumbnail, in: frame)
+            context.restoreGState()
+        } else {
+            drawSyntheticRegionFill(region, path: clipPath)
+        }
+
+        drawRegionBorder(region, in: frame)
+    }
+
+    private func drawSyntheticRegionFill(_ region: CanvasRegionSnapshot, path: NSBezierPath) {
         let fillColor = region.isActive
             ? NSColor(calibratedRed: 0.23, green: 0.44, blue: 0.88, alpha: 0.95)
             : NSColor(calibratedRed: 0.16, green: 0.18, blue: 0.24, alpha: 0.92)
         fillColor.setFill()
         path.fill()
 
-        let border = NSBezierPath(roundedRect: frame, xRadius: 16, yRadius: 16)
-        let borderColor = region.isActive
-            ? NSColor(calibratedRed: 0.74, green: 0.85, blue: 1.0, alpha: 1.0)
-            : NSColor(calibratedWhite: 0.52, alpha: 0.9)
-        borderColor.setStroke()
-        border.lineWidth = region.isActive ? 2.8 : 1.4
-        border.stroke()
-
+        let frame = path.bounds
         let workspaceLabel = "Workspace \(region.workspaceID.rawValue)"
         NSString(string: workspaceLabel).draw(
             at: CGPoint(x: frame.minX + 12, y: frame.maxY - 24),
@@ -422,6 +435,16 @@ private final class ZoomOutOverviewView: NSView {
             NSColor(calibratedRed: 1.0, green: 0.95, blue: 0.72, alpha: 0.98).setFill()
             marker.fill()
         }
+    }
+
+    private func drawRegionBorder(_ region: CanvasRegionSnapshot, in frame: CGRect) {
+        let border = NSBezierPath(roundedRect: frame, xRadius: 16, yRadius: 16)
+        let borderColor = region.isActive
+            ? NSColor(calibratedRed: 0.74, green: 0.85, blue: 1.0, alpha: 1.0)
+            : NSColor(calibratedWhite: 0.52, alpha: 0.9)
+        borderColor.setStroke()
+        border.lineWidth = region.isActive ? 2.8 : 1.4
+        border.stroke()
     }
 
     private func centeredBase(contentBounds: CGRect, scale: CGFloat) -> CGPoint {

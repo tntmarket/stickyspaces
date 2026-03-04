@@ -42,6 +42,7 @@ final class StickyContentView: NSView {
         scrollView.translatesAutoresizingMaskIntoConstraints = false
         scrollView.hasVerticalScroller = true
         scrollView.autohidesScrollers = true
+        scrollView.scrollerStyle = .overlay
         scrollView.drawsBackground = false
         scrollView.borderType = .noBorder
         addSubview(scrollView)
@@ -232,12 +233,39 @@ final class StickyContentView: NSView {
 
     // MARK: - Cursor
 
+    private static let diagonalResizeCursor: NSCursor = {
+        let size = NSSize(width: 16, height: 16)
+        let image = NSImage(size: size, flipped: false) { _ in
+            let path = { () -> NSBezierPath in
+                let p = NSBezierPath()
+                p.move(to: NSPoint(x: 2, y: 2))
+                p.line(to: NSPoint(x: 13, y: 13))
+                p.move(to: NSPoint(x: 8, y: 13))
+                p.line(to: NSPoint(x: 13, y: 13))
+                p.line(to: NSPoint(x: 13, y: 8))
+                p.move(to: NSPoint(x: 7, y: 2))
+                p.line(to: NSPoint(x: 2, y: 2))
+                p.line(to: NSPoint(x: 2, y: 7))
+                return p
+            }()
+            NSColor.white.setStroke()
+            path.lineWidth = 3.0
+            path.lineCapStyle = .round
+            path.stroke()
+            NSColor.black.setStroke()
+            path.lineWidth = 1.5
+            path.stroke()
+            return true
+        }
+        return NSCursor(image: image, hotSpot: NSPoint(x: 8, y: 8))
+    }()
+
     private func updateCursor(for edge: ResizeEdge) {
         let isHorizontal = edge.contains(.left) || edge.contains(.right)
         let isVertical = edge.contains(.top) || edge.contains(.bottom)
 
         if isHorizontal && isVertical {
-            NSCursor.crosshair.set()
+            Self.diagonalResizeCursor.set()
         } else if isHorizontal {
             NSCursor.resizeLeftRight.set()
         } else if isVertical {
@@ -252,23 +280,7 @@ final class StickyContentView: NSView {
     override func draw(_ dirtyRect: NSRect) {
         Self.backgroundColor.setFill()
         NSBezierPath(roundedRect: bounds, xRadius: Self.cornerRadius, yRadius: Self.cornerRadius).fill()
-        drawResizeGrip()
         super.draw(dirtyRect)
-    }
-
-    private func drawResizeGrip() {
-        let color = NSColor(calibratedWhite: 0.6, alpha: 0.4)
-        color.setStroke()
-        let inset: CGFloat = 4
-        let spacing: CGFloat = 4
-        for i in 0..<3 {
-            let offset = CGFloat(i + 1) * spacing
-            let path = NSBezierPath()
-            path.move(to: NSPoint(x: bounds.maxX - inset, y: inset + offset))
-            path.line(to: NSPoint(x: bounds.maxX - inset - offset, y: inset))
-            path.lineWidth = 1.0
-            path.stroke()
-        }
     }
 }
 

@@ -233,39 +233,54 @@ final class StickyContentView: NSView {
 
     // MARK: - Cursor
 
-    private static let diagonalResizeCursor: NSCursor = {
+    private static let nwseResizeCursor = makeDiagonalResizeCursor(nwse: true)
+    private static let neswResizeCursor = makeDiagonalResizeCursor(nwse: false)
+
+    private static func makeDiagonalResizeCursor(nwse: Bool) -> NSCursor {
         let size = NSSize(width: 16, height: 16)
         let image = NSImage(size: size, flipped: false) { _ in
-            let path = { () -> NSBezierPath in
-                let p = NSBezierPath()
-                p.move(to: NSPoint(x: 2, y: 2))
-                p.line(to: NSPoint(x: 13, y: 13))
-                p.move(to: NSPoint(x: 8, y: 13))
-                p.line(to: NSPoint(x: 13, y: 13))
-                p.line(to: NSPoint(x: 13, y: 8))
-                p.move(to: NSPoint(x: 7, y: 2))
-                p.line(to: NSPoint(x: 2, y: 2))
-                p.line(to: NSPoint(x: 2, y: 7))
-                return p
-            }()
+            let triangles = NSBezierPath()
+            if nwse {
+                triangles.move(to: NSPoint(x: 1, y: 14))
+                triangles.line(to: NSPoint(x: 6, y: 14))
+                triangles.line(to: NSPoint(x: 1, y: 9))
+                triangles.close()
+                triangles.move(to: NSPoint(x: 14, y: 1))
+                triangles.line(to: NSPoint(x: 9, y: 1))
+                triangles.line(to: NSPoint(x: 14, y: 6))
+                triangles.close()
+            } else {
+                triangles.move(to: NSPoint(x: 14, y: 14))
+                triangles.line(to: NSPoint(x: 9, y: 14))
+                triangles.line(to: NSPoint(x: 14, y: 9))
+                triangles.close()
+                triangles.move(to: NSPoint(x: 1, y: 1))
+                triangles.line(to: NSPoint(x: 6, y: 1))
+                triangles.line(to: NSPoint(x: 1, y: 6))
+                triangles.close()
+            }
             NSColor.white.setStroke()
-            path.lineWidth = 3.0
-            path.lineCapStyle = .round
-            path.stroke()
+            triangles.lineWidth = 2.5
+            triangles.lineJoinStyle = .round
+            triangles.stroke()
+            NSColor.black.setFill()
+            triangles.fill()
             NSColor.black.setStroke()
-            path.lineWidth = 1.5
-            path.stroke()
+            triangles.lineWidth = 0.5
+            triangles.stroke()
             return true
         }
         return NSCursor(image: image, hotSpot: NSPoint(x: 8, y: 8))
-    }()
+    }
 
     private func updateCursor(for edge: ResizeEdge) {
         let isHorizontal = edge.contains(.left) || edge.contains(.right)
         let isVertical = edge.contains(.top) || edge.contains(.bottom)
 
         if isHorizontal && isVertical {
-            Self.diagonalResizeCursor.set()
+            let isNWSE = (edge.contains(.left) && edge.contains(.top))
+                || (edge.contains(.right) && edge.contains(.bottom))
+            (isNWSE ? Self.nwseResizeCursor : Self.neswResizeCursor).set()
         } else if isHorizontal {
             NSCursor.resizeLeftRight.set()
         } else if isVertical {

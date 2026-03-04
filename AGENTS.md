@@ -1,12 +1,18 @@
 # Agent Instructions
 
-This project uses **bd** (beads) for issue tracking. Run `bd onboard` to get started.
+## Best Practices
+
+Implement all changes with Test Driven Development.
 
 ## Testing
 
 All tests should follow [testing.md](docs/testing.md)
 
-## Quick Reference
+## Task Management
+
+This project uses **bd** (beads) for issue tracking. Run `bd onboard` to get started.
+
+### Quick Reference
 
 ```bash
 bd ready              # Find available work
@@ -16,7 +22,7 @@ bd close <id>         # Complete work
 bd sync               # Sync with git
 ```
 
-## Landing the Plane (Session Completion)
+### Landing the Plane (Session Completion)
 
 **When ending a work session**, you MUST complete ALL steps below. Work is NOT complete until `git push` succeeds.
 

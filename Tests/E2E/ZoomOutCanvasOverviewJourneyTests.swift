@@ -57,6 +57,8 @@ struct ZoomOutCanvasOverviewJourneyTests {
 
         let frameA = try await session.harness.captureScreenshot(name: "frame-a-pre-zoom")
         _ = try await session.harness.prepareZoomOutOverlay()
+        let captureResult = await session.harness.backgroundCaptureResult()
+        #expect(captureResult?.source == .liveCapture)
         let frameB = try await session.harness.captureScreenshot(name: "frame-b-after-prepare")
 
         let diff = try ScreenshotMetrics.diff(

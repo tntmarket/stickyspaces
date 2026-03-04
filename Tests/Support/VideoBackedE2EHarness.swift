@@ -266,6 +266,10 @@ actor VideoBackedE2EHarness {
         await panelSync.visibleStickyIDs(on: workspaceID)
     }
 
+    func backgroundCaptureResult() async -> BackgroundCaptureResult? {
+        await presenter.backgroundCaptureResult()
+    }
+
     func hideZoomOutOverlay() async {
         await presenter.hide()
     }

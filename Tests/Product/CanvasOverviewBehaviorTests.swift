@@ -537,4 +537,28 @@ struct CanvasOverviewBehaviorTests {
         #expect(synthetic.isStale(now: now, staleAfter: 0) == false)
         #expect(unavailable.isStale(now: now, staleAfter: 0) == false)
     }
+
+    @Test("Prepare-time background reports live capture when desktop screenshot succeeds")
+    func prepareTimeBackgroundReportsLiveCaptureWhenDesktopScreenshotSucceeds() {
+        let context = CGContext(
+            data: nil, width: 1, height: 1,
+            bitsPerComponent: 8, bytesPerRow: 4,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        )
+        let image = context?.makeImage()
+        let now = Date()
+        let result = BackgroundCaptureResult.from(capturedImage: image, now: now)
+
+        #expect(result.source == .liveCapture)
+        #expect(result.capturedAt == now)
+    }
+
+    @Test("Prepare-time background falls back to synthetic when capture unavailable")
+    func prepareTimeBackgroundFallsBackToSyntheticWhenCaptureUnavailable() {
+        let result = BackgroundCaptureResult.from(capturedImage: nil)
+
+        #expect(result.source == .synthetic)
+        #expect(result.capturedAt == nil)
+    }
 }

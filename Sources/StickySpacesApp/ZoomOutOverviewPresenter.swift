@@ -1,9 +1,37 @@
+import CoreGraphics
 import Foundation
 import StickySpacesShared
 
 #if canImport(AppKit)
 import AppKit
 #endif
+
+public protocol DesktopCaptureProviding: Sendable {
+    func captureMainDisplay() -> CGImage?
+}
+
+public struct NoopDesktopCapture: DesktopCaptureProviding, Sendable {
+    public init() {}
+
+    public func captureMainDisplay() -> CGImage? { nil }
+}
+
+public struct BackgroundCaptureResult: Sendable, Equatable {
+    public let source: CanvasThumbnailSource
+    public let capturedAt: Date?
+
+    public init(source: CanvasThumbnailSource, capturedAt: Date? = nil) {
+        self.source = source
+        self.capturedAt = capturedAt
+    }
+
+    public static func from(capturedImage: CGImage?, now: Date = Date()) -> BackgroundCaptureResult {
+        guard capturedImage != nil else {
+            return BackgroundCaptureResult(source: .synthetic)
+        }
+        return BackgroundCaptureResult(source: .liveCapture, capturedAt: now)
+    }
+}
 
 public protocol ZoomOutOverviewPresenting: Sendable {
     func present(snapshot: CanvasSnapshot, heroSticky: StickyNote?) async
@@ -49,11 +77,23 @@ public struct ZoomOutAnimationMetrics: Sendable, Equatable {
 }
 
 #if canImport(AppKit)
+public struct CGDisplayDesktopCapture: DesktopCaptureProviding, Sendable {
+    public init() {}
+
+    public func captureMainDisplay() -> CGImage? {
+        CGDisplayCreateImage(CGMainDisplayID())
+    }
+}
+
 public actor AppKitZoomOutOverviewPresenter: ZoomOutOverviewPresenting {
     @MainActor private static var controller: ZoomOutOverviewWindowController?
+    private let captureProvider: any DesktopCaptureProviding
     private var lastAnimationMetrics: ZoomOutAnimationMetrics?
+    private var lastBackgroundCaptureResult: BackgroundCaptureResult?
 
-    public init() {}
+    public init(captureProvider: any DesktopCaptureProviding = CGDisplayDesktopCapture()) {
+        self.captureProvider = captureProvider
+    }
 
     public func present(snapshot: CanvasSnapshot, heroSticky: StickyNote?) async {
         await preparePresentation(snapshot: snapshot, heroSticky: heroSticky)
@@ -62,7 +102,7 @@ public actor AppKitZoomOutOverviewPresenter: ZoomOutOverviewPresenting {
 
     public func preparePresentation(snapshot: CanvasSnapshot, heroSticky: StickyNote?) async {
         let controller = await resolveController()
-        await controller.prepare(snapshot: snapshot, heroSticky: heroSticky)
+        lastBackgroundCaptureResult = await controller.prepare(snapshot: snapshot, heroSticky: heroSticky)
     }
 
     public func animatePreparedPresentation() async {
@@ -72,6 +112,10 @@ public actor AppKitZoomOutOverviewPresenter: ZoomOutOverviewPresenting {
 
     public func latestAnimationMetrics() async -> ZoomOutAnimationMetrics? {
         lastAnimationMetrics
+    }
+
+    public func backgroundCaptureResult() -> BackgroundCaptureResult? {
+        lastBackgroundCaptureResult
     }
 
     public func hide() async {
@@ -85,7 +129,7 @@ public actor AppKitZoomOutOverviewPresenter: ZoomOutOverviewPresenting {
         if let existing = Self.controller {
             return existing
         }
-        let created = ZoomOutOverviewWindowController()
+        let created = ZoomOutOverviewWindowController(captureProvider: captureProvider)
         Self.controller = created
         return created
     }
@@ -95,9 +139,11 @@ public actor AppKitZoomOutOverviewPresenter: ZoomOutOverviewPresenting {
 private final class ZoomOutOverviewWindowController {
     private let panel: NSPanel
     private let view: ZoomOutOverviewView
+    private let captureProvider: any DesktopCaptureProviding
     private var preparedHeroSticky: StickyNote?
 
-    init() {
+    init(captureProvider: any DesktopCaptureProviding) {
+        self.captureProvider = captureProvider
         let initialFrame = NSScreen.main?.frame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
         panel = NSPanel(
             contentRect: initialFrame,
@@ -118,12 +164,18 @@ private final class ZoomOutOverviewWindowController {
         panel.contentView = view
     }
 
-    func prepare(snapshot: CanvasSnapshot, heroSticky: StickyNote?) async {
+    @discardableResult
+    func prepare(snapshot: CanvasSnapshot, heroSticky: StickyNote?) async -> BackgroundCaptureResult {
         let screenFrame = NSScreen.main?.frame ?? panel.frame
         panel.setFrame(screenFrame, display: true)
+        panel.orderOut(nil)
         view.frame = panel.contentView?.bounds ?? screenFrame
         view.snapshot = snapshot
-        view.backgroundSnapshotImage = captureMainDisplayImage()
+
+        let capturedImage = captureProvider.captureMainDisplay()
+        view.backgroundSnapshotImage = capturedImage
+        let captureResult = BackgroundCaptureResult.from(capturedImage: capturedImage)
+
         preparedHeroSticky = heroSticky
 
         let startScale: CGFloat = 1.15
@@ -139,6 +191,7 @@ private final class ZoomOutOverviewWindowController {
         panel.displayIfNeeded()
         NSApplication.shared.setActivationPolicy(.regular)
         NSApplication.shared.activate(ignoringOtherApps: true)
+        return captureResult
     }
 
     func animateZoomOut() async -> ZoomOutAnimationMetrics {
@@ -244,9 +297,6 @@ private final class ZoomOutOverviewWindowController {
         )
     }
 
-    private func captureMainDisplayImage() -> CGImage? {
-        CGDisplayCreateImage(CGMainDisplayID())
-    }
 }
 
 @MainActor
@@ -406,7 +456,7 @@ private final class ZoomOutOverviewView: NSView {
 }
 #else
 public actor AppKitZoomOutOverviewPresenter: ZoomOutOverviewPresenting {
-    public init() {}
+    public init(captureProvider: any DesktopCaptureProviding = NoopDesktopCapture()) {}
 
     public func present(snapshot: CanvasSnapshot, heroSticky: StickyNote?) async {}
 
@@ -417,5 +467,7 @@ public actor AppKitZoomOutOverviewPresenter: ZoomOutOverviewPresenting {
     public func hide() async {}
 
     public func latestAnimationMetrics() async -> ZoomOutAnimationMetrics? { nil }
+
+    public func backgroundCaptureResult() -> BackgroundCaptureResult? { nil }
 }
 #endif

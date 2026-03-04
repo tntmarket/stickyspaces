@@ -80,6 +80,51 @@ struct ResizeBehaviorTests {
         #expect(resize.size.height > 220)
     }
 
+    @Test("Resize does not activate the app")
+    @MainActor func resizeDoesNotActivateApp() {
+        let panel = StickyPanel(stickyID: UUID(), delegate: nil)
+        panel.setFrame(NSRect(x: 100, y: 100, width: 320, height: 220), display: true)
+
+        #expect(panel.styleMask.contains(.nonactivatingPanel))
+        #expect(!panel.styleMask.contains(.titled))
+    }
+
+    @Test("Mouse exit during active resize does not reset cursor")
+    @MainActor func mouseExitDuringResizeKeepsCursor() {
+        let panel = StickyPanel(stickyID: UUID(), delegate: nil)
+        panel.setFrame(NSRect(x: 100, y: 100, width: 320, height: 220), display: true)
+        panel.orderFrontRegardless()
+
+        let contentView = panel.stickyContentView
+        let rightEdgePoint = NSPoint(x: contentView.bounds.maxX - 2, y: contentView.bounds.midY)
+
+        let moveEvent = NSEvent.mouseEvent(
+            with: .mouseMoved, location: rightEdgePoint,
+            modifierFlags: [], timestamp: 0, windowNumber: panel.windowNumber,
+            context: nil, eventNumber: 0, clickCount: 0, pressure: 0
+        )!
+        contentView.mouseMoved(with: moveEvent)
+        #expect(NSCursor.current == NSCursor.resizeLeftRight)
+
+        let mouseDown = NSEvent.mouseEvent(
+            with: .leftMouseDown, location: rightEdgePoint,
+            modifierFlags: [], timestamp: 0, windowNumber: panel.windowNumber,
+            context: nil, eventNumber: 0, clickCount: 1, pressure: 0
+        )!
+        contentView.mouseDown(with: mouseDown)
+
+        let exitEvent = NSEvent.otherEvent(
+            with: .applicationDefined,
+            location: NSPoint(x: -10, y: -10),
+            modifierFlags: [], timestamp: 0,
+            windowNumber: panel.windowNumber,
+            context: nil, subtype: 0, data1: 0, data2: 0
+        )!
+        contentView.mouseExited(with: exitEvent)
+
+        #expect(NSCursor.current == NSCursor.resizeLeftRight)
+    }
+
     @Test("Left-edge resize adjusts origin and width")
     @MainActor func leftEdgeResizeChangesOriginAndWidth() {
         let stickyID = UUID()

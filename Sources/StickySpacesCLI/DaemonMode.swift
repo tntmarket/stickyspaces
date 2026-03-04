@@ -73,6 +73,7 @@ func startDaemon() async throws -> Never {
     let panelSync = AppKitPanelSync()
     let yabai = FakeYabaiQuerying(currentSpace: WorkspaceID(rawValue: 1))
     let manager = StickyManager(store: store, yabai: yabai, panelSync: panelSync)
+    await panelSync.installManagerCallbacks(manager)
     let ipcServer = IPCServer(manager: manager)
     let server = UnixSocketServer(socketPath: socketPath, ipcServer: ipcServer)
 

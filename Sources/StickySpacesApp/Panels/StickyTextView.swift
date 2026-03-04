@@ -42,6 +42,13 @@ final class StickyTextView: NSTextView {
             name: NSText.didEndEditingNotification,
             object: self
         )
+
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleWindowResignedKey(_:)),
+            name: NSWindow.didResignKeyNotification,
+            object: nil
+        )
     }
 
     @available(*, unavailable)
@@ -53,6 +60,11 @@ final class StickyTextView: NSTextView {
     }
 
     @objc private func handleEndEditing(_ notification: Notification) {
+        flushPendingChange()
+    }
+
+    @objc private func handleWindowResignedKey(_ notification: Notification) {
+        guard notification.object as? NSWindow === window else { return }
         flushPendingChange()
     }
 
@@ -70,7 +82,7 @@ final class StickyTextView: NSTextView {
         )
     }
 
-    private func flushPendingChange() {
+    func flushPendingChange() {
         guard hasPendingChange else { return }
         pendingWorkItem?.cancel()
         pendingWorkItem = nil

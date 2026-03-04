@@ -70,6 +70,46 @@ struct StickyTextViewTests {
         #expect(recorder.textChanges.first?.text == "draft")
     }
 
+    @Test("Window resign key flushes pending text immediately")
+    @MainActor func flushesOnWindowResignKey() {
+        let stickyID = UUID()
+        let recorder = TextDelegateRecorder()
+        let panel = StickyPanel(stickyID: stickyID, delegate: recorder)
+        panel.setFrame(NSRect(x: 0, y: 0, width: 320, height: 220), display: true)
+        panel.orderFrontRegardless()
+
+        let textView = panel.stickyContentView.textView
+        textView.string = "unsaved draft"
+        textView.didChangeText()
+
+        #expect(recorder.textChanges.isEmpty)
+
+        NotificationCenter.default.post(
+            name: NSWindow.didResignKeyNotification,
+            object: panel
+        )
+
+        #expect(recorder.textChanges.count == 1)
+        #expect(recorder.textChanges.first?.text == "unsaved draft")
+    }
+
+    @Test("Window resign key from different window does not flush")
+    @MainActor func resignKeyFromOtherWindowDoesNotFlush() {
+        let stickyID = UUID()
+        let recorder = TextDelegateRecorder()
+        let textView = StickyTextView(stickyID: stickyID, delegate: recorder)
+
+        textView.string = "draft"
+        textView.didChangeText()
+
+        NotificationCenter.default.post(
+            name: NSWindow.didResignKeyNotification,
+            object: NSPanel()
+        )
+
+        #expect(recorder.textChanges.isEmpty)
+    }
+
     @Test("Programmatic text set does not trigger delegate")
     @MainActor func programmaticTextSetDoesNotTriggerDelegate() async throws {
         let stickyID = UUID()

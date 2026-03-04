@@ -88,6 +88,10 @@ final class StickyContentView: NSView {
     // Ensures edge-zone clicks reach StickyContentView rather than subviews.
     override func hitTest(_ point: NSPoint) -> NSView? {
         let localPoint = convert(point, from: superview)
+        let dismissButtonFrame = dragStrip.convert(dragStrip.dismissButton.frame, to: self)
+        if dragStrip.dismissButton.alphaValue > 0 && dismissButtonFrame.contains(localPoint) {
+            return dragStrip.dismissButton
+        }
         if bounds.contains(localPoint) && !resizeEdge(at: localPoint).isEmpty {
             return self
         }
@@ -127,7 +131,9 @@ final class StickyContentView: NSView {
             context.duration = 0.15
             dragStrip.dismissButton.animator().alphaValue = 0
         }
-        NSCursor.arrow.set()
+        if activeResizeEdge.isEmpty {
+            NSCursor.arrow.set()
+        }
     }
 
     override func mouseMoved(with event: NSEvent) {

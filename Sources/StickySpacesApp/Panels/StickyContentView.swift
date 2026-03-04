@@ -239,17 +239,17 @@ final class StickyContentView: NSView {
     private static let nwseResizeCursor = makeResizeCursor(angle: -.pi / 4)
 
     private static func makeResizeCursor(angle: CGFloat) -> NSCursor {
-        let cx: CGFloat = 7.5, cy: CGFloat = 7.5
+        let cx: CGFloat = 8.5, cy: CGFloat = 8.5
         let cosA = cos(angle), sinA = sin(angle)
         func rotate(_ p: NSPoint) -> NSPoint {
             let dx = p.x - cx, dy = p.y - cy
             return NSPoint(x: cx + dx * cosA - dy * sinA, y: cy + dx * sinA + dy * cosA)
         }
 
-        let t1 = [NSPoint(x: 0, y: 7.5), NSPoint(x: 6, y: 10), NSPoint(x: 6, y: 5)].map(rotate)
-        let t2 = [NSPoint(x: 15, y: 7.5), NSPoint(x: 9, y: 10), NSPoint(x: 9, y: 5)].map(rotate)
+        let t1 = [NSPoint(x: 0, y: 8.5), NSPoint(x: 6.5, y: 11.5), NSPoint(x: 6.5, y: 5.5)].map(rotate)
+        let t2 = [NSPoint(x: 17, y: 8.5), NSPoint(x: 10.5, y: 11.5), NSPoint(x: 10.5, y: 5.5)].map(rotate)
 
-        let size = NSSize(width: 16, height: 16)
+        let size = NSSize(width: 18, height: 18)
         let image = NSImage(size: size, flipped: false) { _ in
             let path = NSBezierPath()
             path.move(to: t1[0]); path.line(to: t1[1]); path.line(to: t1[2]); path.close()
@@ -265,7 +265,7 @@ final class StickyContentView: NSView {
             path.stroke()
             return true
         }
-        return NSCursor(image: image, hotSpot: NSPoint(x: 8, y: 8))
+        return NSCursor(image: image, hotSpot: NSPoint(x: 9, y: 9))
     }
 
     private func updateCursor(for edge: ResizeEdge) {

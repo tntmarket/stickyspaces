@@ -233,32 +233,27 @@ final class StickyContentView: NSView {
 
     // MARK: - Cursor
 
-    private static let horizontalResizeCursor = makeResizeCursor(
-        tip1: NSPoint(x: 1, y: 8), wing1a: NSPoint(x: 6, y: 11), wing1b: NSPoint(x: 6, y: 5),
-        tip2: NSPoint(x: 14, y: 8), wing2a: NSPoint(x: 9, y: 11), wing2b: NSPoint(x: 9, y: 5)
-    )
-    private static let verticalResizeCursor = makeResizeCursor(
-        tip1: NSPoint(x: 8, y: 14), wing1a: NSPoint(x: 5, y: 9), wing1b: NSPoint(x: 11, y: 9),
-        tip2: NSPoint(x: 8, y: 1), wing2a: NSPoint(x: 5, y: 6), wing2b: NSPoint(x: 11, y: 6)
-    )
-    private static let nwseResizeCursor = makeResizeCursor(
-        tip1: NSPoint(x: 1, y: 14), wing1a: NSPoint(x: 6, y: 14), wing1b: NSPoint(x: 1, y: 9),
-        tip2: NSPoint(x: 14, y: 1), wing2a: NSPoint(x: 9, y: 1), wing2b: NSPoint(x: 14, y: 6)
-    )
-    private static let neswResizeCursor = makeResizeCursor(
-        tip1: NSPoint(x: 14, y: 14), wing1a: NSPoint(x: 9, y: 14), wing1b: NSPoint(x: 14, y: 9),
-        tip2: NSPoint(x: 1, y: 1), wing2a: NSPoint(x: 6, y: 1), wing2b: NSPoint(x: 1, y: 6)
-    )
+    private static let horizontalResizeCursor = makeResizeCursor(angle: 0)
+    private static let neswResizeCursor = makeResizeCursor(angle: .pi / 4)
+    private static let verticalResizeCursor = makeResizeCursor(angle: .pi / 2)
+    private static let nwseResizeCursor = makeResizeCursor(angle: -.pi / 4)
 
-    private static func makeResizeCursor(
-        tip1: NSPoint, wing1a: NSPoint, wing1b: NSPoint,
-        tip2: NSPoint, wing2a: NSPoint, wing2b: NSPoint
-    ) -> NSCursor {
+    private static func makeResizeCursor(angle: CGFloat) -> NSCursor {
+        let cx: CGFloat = 7.5, cy: CGFloat = 7.5
+        let cosA = cos(angle), sinA = sin(angle)
+        func rotate(_ p: NSPoint) -> NSPoint {
+            let dx = p.x - cx, dy = p.y - cy
+            return NSPoint(x: cx + dx * cosA - dy * sinA, y: cy + dx * sinA + dy * cosA)
+        }
+
+        let t1 = [NSPoint(x: 0.5, y: 7.5), NSPoint(x: 6, y: 12), NSPoint(x: 6, y: 3)].map(rotate)
+        let t2 = [NSPoint(x: 14.5, y: 7.5), NSPoint(x: 9, y: 12), NSPoint(x: 9, y: 3)].map(rotate)
+
         let size = NSSize(width: 16, height: 16)
         let image = NSImage(size: size, flipped: false) { _ in
             let path = NSBezierPath()
-            path.move(to: tip1); path.line(to: wing1a); path.line(to: wing1b); path.close()
-            path.move(to: tip2); path.line(to: wing2a); path.line(to: wing2b); path.close()
+            path.move(to: t1[0]); path.line(to: t1[1]); path.line(to: t1[2]); path.close()
+            path.move(to: t2[0]); path.line(to: t2[1]); path.line(to: t2[2]); path.close()
             NSColor.white.setStroke()
             path.lineWidth = 2.5
             path.lineJoinStyle = .round

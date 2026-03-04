@@ -45,6 +45,8 @@ final class DragStripView: NSView {
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError() }
 
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
     override func mouseDown(with event: NSEvent) {
         didDrag = false
         initialMouseLocation = NSEvent.mouseLocation

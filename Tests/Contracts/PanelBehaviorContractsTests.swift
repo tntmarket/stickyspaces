@@ -23,5 +23,17 @@ struct PanelBehaviorContractsTests {
         #expect(panel.becomesKeyOnlyIfNeeded == true)
         #expect(panel.styleMask.contains(.nonactivatingPanel))
     }
+
+    @Test("Panel views accept first mouse so interactions work when app is not active")
+    @MainActor func panelViewsAcceptFirstMouse() {
+        let panel = StickyPanel(stickyID: UUID(), delegate: nil)
+        panel.setFrame(NSRect(x: 0, y: 0, width: 320, height: 220), display: true)
+
+        let contentView = panel.stickyContentView
+        #expect(contentView.acceptsFirstMouse(for: nil) == true)
+        #expect(contentView.dragStrip.acceptsFirstMouse(for: nil) == true)
+        #expect(contentView.dragStrip.dismissButton.acceptsFirstMouse(for: nil) == true)
+        #expect(contentView.textView.acceptsFirstMouse(for: nil) == true)
+    }
 }
 #endif

@@ -62,6 +62,8 @@ final class StickyContentView: NSView {
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError() }
 
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
     // MARK: - Resize Edge Detection
 
     private struct ResizeEdge: OptionSet {

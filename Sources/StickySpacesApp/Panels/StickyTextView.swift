@@ -54,6 +54,8 @@ final class StickyTextView: NSTextView {
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError() }
 
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
     override func didChangeText() {
         super.didChangeText()
         scheduleDebounce()

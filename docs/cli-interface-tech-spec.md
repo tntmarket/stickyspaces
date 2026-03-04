@@ -25,35 +25,24 @@ This spec covers the CLI transport layer only: how commands get from the termina
 ### Functional Requirements
 
 - **FR-1**: A user should be able to run any stickyspaces command (e.g., `stickyspaces new --text "Project kickoff notes"`) and have it take effect in a persistent daemon — because today every invocation is ephemeral, making the CLI useless for actual work.
-
 - **FR-2**: The daemon should start automatically on first CLI invocation, with no separate setup step — because requiring `stickyspaces serve` before `stickyspaces new` doubles the friction of a quick capture and breaks the Keyboard Maestro hotkey-to-action promise.
-
 - **FR-3**: Subsequent CLI invocations should reuse the already-running daemon — because creating a new in-memory universe per command means `list` can never show what `new` created.
-
 - **FR-4**: The daemon should create real macOS floating windows (`NSPanel`) when stickies are created — because the product promise is visible sticky notes on the desktop, not text printed to a terminal.
-
 - **FR-5**: The CLI should print a clear, actionable error when the daemon cannot be started — because a silent failure after a hotkey press leaves the user confused about whether anything happened.
-
-- **FR-6**: The daemon should stay alive across CLI invocations until explicitly killed or the system shuts down — because stickies and their windows must persist for the duration of the work session (constraint C-3 in the parent spec).
+- **FR-6**: The daemon should stay alive across CLI invocations until explicitly killed or the system shuts down — because stickies and their windows must persist for the d**u**ration of the work session (constraint C-3 in the parent spec).
 
 ### Non-Functional Requirements
 
 - **NFR-1**: CLI command round-trip (client connect + send + receive + print) should complete in under 200ms p95 — because the Keyboard Maestro hotkey path adds ~50ms overhead, and the parent spec requires <100ms hotkey-to-visible-panel (NFR-1 in parent), leaving ~50ms budget for socket overhead.
-
 - **NFR-2**: Daemon startup (spawn + bind socket + ready for connections) should complete in under 3 seconds — because this is the one-time cost on first use, and anything longer than a few seconds feels broken after pressing a hotkey.
-
 - **NFR-3**: Adding a new CLI command should require changes in at most two files (arg-to-`IPCRequest` translation + response formatting) — because the parent spec (NFR-4) promises new commands in under 1 hour, and the transport layer must not add friction to that.
-
 - **NFR-4**: The existing in-process test path (`StickySpacesCLICommandRunner.run(args:app:)`) must remain unchanged — because 10 CLI integration tests and 7 IPC integration tests depend on it, and breaking them would be a regression with no product value.
 
 ### Constraints
 
 - **C-1**: The IPC transport must use a Unix domain socket at `~/.config/stickyspaces/sock` — because the parent spec (D-1) already defines this path, and `IPCServer`, `IPCWireCodec`, `IPCRequest`/`IPCResponse` are all built around newline-delimited JSON over this socket.
-
 - **C-2**: At most one daemon process may own the socket and store at any time — because split-brain control planes make stickies appear lost or uncontrollable (parent spec C-9).
-
 - **C-3**: The daemon must clean up the socket file and lock on termination (including SIGINT/SIGTERM) — because stale socket files prevent the next daemon from starting, requiring manual cleanup the user won't know how to do.
-
 - **C-4**: The `--daemon` flag is an internal mechanism, not a user-facing command — because exposing process management to users adds cognitive load that contradicts the "zero-friction capture" design goal.
 
 ---
@@ -67,7 +56,7 @@ flowchart TB
     subgraph userTerminal ["User Terminal"]
         cmd1["stickyspaces new --text '...'"]
         cmd2["stickyspaces list"]
-        cmd3["stickyspaces dismiss &lt;id&gt;"]
+        cmd3["stickyspaces dismiss <id>"]
     end
 
     subgraph cliProcess ["CLI Process (short-lived)"]
@@ -104,6 +93,8 @@ flowchart TB
     panelSync --> panel1 & panel2
 ```
 
+
+
 ### CLI Entry Point Routing
 
 Every CLI invocation enters `EntryPoint.main()`. If `--daemon` is the first argument, the process enters daemon mode and never returns. Otherwise, it enters client mode: ensure the daemon is running, connect, send the command, print the result, and exit.
@@ -134,6 +125,8 @@ flowchart TD
     Connect --> Translate --> Send --> Format --> Print
 ```
 
+
+
 ### Component Design
 
 #### UnixSocketServer (new: `Sources/StickySpacesApp/UnixSocketServer.swift`)
@@ -144,7 +137,7 @@ An actor that bridges the POSIX socket layer to the existing `IPCServer`:
 - `start()` — runs an accept loop via `withTaskGroup`, spawning a child task per connection that reads newline-delimited lines, calls `ipcServer.handleLine(_:)`, and writes the response back
 - `shutdown()` — cancels the task group, closes the file descriptor, unlinks the socket path
 
-The server is a thin transport adapter. All command routing, validation, and error handling already lives in [`IPCServer.handleLine(_:)`](Sources/StickySpacesApp/IPCServer.swift) — the socket server just moves bytes.
+The server is a thin transport adapter. All command routing, validation, and error handling already lives in `[IPCServer.handleLine(_:)](Sources/StickySpacesApp/IPCServer.swift)` — the socket server just moves bytes.
 
 #### IPCSocketClient (new: `Sources/StickySpacesCLI/IPCSocketClient.swift`)
 
@@ -193,15 +186,15 @@ The arg-to-request translation and response formatting are the only CLI-specific
 
 ### Key Architectural Decisions
 
-**D-1: Lazy daemon start rather than explicit `serve` command.** The CLI tries to connect on every invocation; if the daemon is absent, it spawns one automatically. This eliminates a manual setup step and preserves the Keyboard Maestro hotkey contract (press hotkey → sticky appears, no prerequisites). _(Satisfies FR-2.)_
+**D-1: Lazy daemon start rather than explicit `serve` command.** The CLI tries to connect on every invocation; if the daemon is absent, it spawns one automatically. This eliminates a manual setup step and preserves the Keyboard Maestro hotkey contract (press hotkey → sticky appears, no prerequisites). *(Satisfies FR-2.)*
 
-**D-2: The daemon is a background instance of the same `stickyspaces` binary.** Reusing the same executable (with a `--daemon` flag) avoids a separate daemon binary, simplifies the build, and means `DaemonLauncher` can resolve the executable path from `ProcessInfo`. _(Satisfies FR-2, NFR-3.)_
+**D-2: The daemon is a background instance of the same `stickyspaces` binary.** Reusing the same executable (with a `--daemon` flag) avoids a separate daemon binary, simplifies the build, and means `DaemonLauncher` can resolve the executable path from `ProcessInfo`. *(Satisfies FR-2, NFR-3.)*
 
-**D-3: `UnixSocketServer` is a thin transport adapter over the existing `IPCServer`.** All command routing is already implemented in `IPCServer.handleLine()`. The socket server only handles `accept()`/`read()`/`write()` and delegates every line to `IPCServer`. This means adding a new command requires zero changes to the transport layer. _(Satisfies NFR-3.)_
+**D-3: `UnixSocketServer` is a thin transport adapter over the existing `IPCServer`.** All command routing is already implemented in `IPCServer.handleLine()`. The socket server only handles `accept()`/`read()`/`write()` and delegates every line to `IPCServer`. This means adding a new command requires zero changes to the transport layer. *(Satisfies NFR-3.)*
 
-**D-4: File-based instance lock (`flock`) prevents double-daemon.** POSIX `flock()` is automatically released on process exit (including crashes and SIGKILL), so a stale lock file cannot permanently block daemon startup. Combined with stale-socket cleanup in `DaemonLauncher`, this handles all daemon lifecycle edge cases. _(Satisfies C-2, C-3.)_
+**D-4: File-based instance lock (`flock`) prevents double-daemon.** POSIX `flock()` is automatically released on process exit (including crashes and SIGKILL), so a stale lock file cannot permanently block daemon startup. Combined with stale-socket cleanup in `DaemonLauncher`, this handles all daemon lifecycle edge cases. *(Satisfies C-2, C-3.)*
 
-**D-5: Preserve the in-process `DemoApp` test path.** `StickySpacesCLICommandRunner.run(args:app:)` stays unchanged. The new `CLIClientRunner` is a parallel path for real usage. Tests that exercise command semantics continue to use the fast in-process path; only transport-level tests use actual sockets. _(Satisfies NFR-4.)_
+**D-5: Preserve the in-process `DemoApp` test path.** `StickySpacesCLICommandRunner.run(args:app:)` stays unchanged. The new `CLIClientRunner` is a parallel path for real usage. Tests that exercise command semantics continue to use the fast in-process path; only transport-level tests use actual sockets. *(Satisfies NFR-4.)*
 
 ### File Changes
 
@@ -223,7 +216,7 @@ Tests/Integration/
 
 ### Interfaces
 
-**`UnixSocketServer`** (public interface):
+`**UnixSocketServer**` (public interface):
 
 ```swift
 public actor UnixSocketServer {
@@ -233,7 +226,7 @@ public actor UnixSocketServer {
 }
 ```
 
-**`IPCSocketClient`** (public interface):
+`**IPCSocketClient**` (public interface):
 
 ```swift
 public struct IPCSocketClient: Sendable {
@@ -242,7 +235,7 @@ public struct IPCSocketClient: Sendable {
 }
 ```
 
-**`DaemonLauncher`** (public interface):
+`**DaemonLauncher**` (public interface):
 
 ```swift
 public enum DaemonLauncher {
@@ -250,7 +243,7 @@ public enum DaemonLauncher {
 }
 ```
 
-**`CLIClientRunner`** (public interface):
+`**CLIClientRunner**` (public interface):
 
 ```swift
 public enum CLIClientRunner {
@@ -260,13 +253,15 @@ public enum CLIClientRunner {
 
 ### Risks & Assumptions
 
-| Risk | Impact | Mitigation |
-| --- | --- | --- |
-| `NSApplication.shared.run()` from a CLI binary may not initialize AppKit properly (no bundle, no Info.plist) | Panels fail to render or appear | `AppKitPanelSync` already calls `setActivationPolicy(.regular)` + `activate(ignoringOtherApps:)`; validate in first integration test. If needed, switch to `.accessory` to avoid Dock icon. |
-| Daemon spawn latency exceeds 3s on cold Swift runtime | First command times out | 3s is conservative for a warm system. Log timeout to daemon.log and surface the log path in the error message. |
-| Stale socket file from a crashed daemon blocks next launch | CLI hangs or errors on next use | `DaemonLauncher` checks `flock()` on instance lock before trusting socket. Stale socket without lock → unlink and respawn. |
-| Signal handler cleanup races with `NSApplication` teardown | Socket file orphaned on certain kill sequences | POSIX `unlink()` is async-signal-safe. Signal handler calls unlink before exit, regardless of AppKit state. |
-| Background process inherits terminal environment variables | Daemon picks up `STICKYSPACES_SIMULATE_YABAI_UNAVAILABLE` or other test env vars | `DaemonLauncher` explicitly clears test-only env vars when spawning the daemon process. |
+
+| Risk                                                                                                         | Impact                                                                           | Mitigation                                                                                                                                                                                  |
+| ------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `NSApplication.shared.run()` from a CLI binary may not initialize AppKit properly (no bundle, no Info.plist) | Panels fail to render or appear                                                  | `AppKitPanelSync` already calls `setActivationPolicy(.regular)` + `activate(ignoringOtherApps:)`; validate in first integration test. If needed, switch to `.accessory` to avoid Dock icon. |
+| Daemon spawn latency exceeds 3s on cold Swift runtime                                                        | First command times out                                                          | 3s is conservative for a warm system. Log timeout to daemon.log and surface the log path in the error message.                                                                              |
+| Stale socket file from a crashed daemon blocks next launch                                                   | CLI hangs or errors on next use                                                  | `DaemonLauncher` checks `flock()` on instance lock before trusting socket. Stale socket without lock → unlink and respawn.                                                                  |
+| Signal handler cleanup races with `NSApplication` teardown                                                   | Socket file orphaned on certain kill sequences                                   | POSIX `unlink()` is async-signal-safe. Signal handler calls unlink before exit, regardless of AppKit state.                                                                                 |
+| Background process inherits terminal environment variables                                                   | Daemon picks up `STICKYSPACES_SIMULATE_YABAI_UNAVAILABLE` or other test env vars | `DaemonLauncher` explicitly clears test-only env vars when spawning the daemon process.                                                                                                     |
+
 
 ---
 
@@ -276,23 +271,25 @@ public enum CLIClientRunner {
 
 Tests are organized in two layers: **socket-level** tests validate the transport (server + client + wire codec), and **CLI client mode** tests validate the full end-to-end path (arg parsing → daemon communication → formatted output). Both layers use real Unix sockets on temp paths for isolation.
 
-The existing in-process test suites ([`CLIWorkflowTests`](Tests/Integration/CLIWorkflowTests.swift), [`IPCWorkflowTests`](Tests/Integration/IPCWorkflowTests.swift)) are unmodified — they continue to cover command semantics via the `DemoApp` path.
+The existing in-process test suites (`[CLIWorkflowTests](Tests/Integration/CLIWorkflowTests.swift)`, `[IPCWorkflowTests](Tests/Integration/IPCWorkflowTests.swift)`) are unmodified — they continue to cover command semantics via the `DemoApp` path.
 
 ### Requirement Coverage
 
-| Requirement | Test |
-| --- | --- |
-| FR-1 (commands take effect in persistent daemon) | `clientCreatesStickyViaSocketAndReceivesCreatedResponse` |
-| FR-2 (daemon starts automatically) | `daemonLauncherSpawnsBackgroundProcessWhenSocketAbsent` |
-| FR-3 (subsequent invocations reuse daemon) | `statePersistsAcrossSeparateClientConnections` |
-| FR-4 (real windows created) | Manual validation (AppKit panels require a window server) |
-| FR-5 (actionable error on failure) | `cliPrintsDaemonNotRunningWhenLaunchFails` |
-| FR-6 (daemon stays alive) | `statePersistsAcrossSeparateClientConnections` |
-| NFR-1 (round-trip < 200ms) | `socketRoundTripLatencyUnder200ms` |
-| NFR-4 (in-process tests unchanged) | Existing `CLIWorkflowTests` pass without modification |
-| C-1 (Unix socket at well-known path) | `serverBindsAndAcceptsOnSpecifiedPath` |
-| C-2 (single daemon instance) | `secondDaemonExitsWhenLockHeld` |
-| C-3 (cleanup on termination) | `serverShutdownRemovesSocketFile` |
+
+| Requirement                                      | Test                                                      |
+| ------------------------------------------------ | --------------------------------------------------------- |
+| FR-1 (commands take effect in persistent daemon) | `clientCreatesStickyViaSocketAndReceivesCreatedResponse`  |
+| FR-2 (daemon starts automatically)               | `daemonLauncherSpawnsBackgroundProcessWhenSocketAbsent`   |
+| FR-3 (subsequent invocations reuse daemon)       | `statePersistsAcrossSeparateClientConnections`            |
+| FR-4 (real windows created)                      | Manual validation (AppKit panels require a window server) |
+| FR-5 (actionable error on failure)               | `cliPrintsDaemonNotRunningWhenLaunchFails`                |
+| FR-6 (daemon stays alive)                        | `statePersistsAcrossSeparateClientConnections`            |
+| NFR-1 (round-trip < 200ms)                       | `socketRoundTripLatencyUnder200ms`                        |
+| NFR-4 (in-process tests unchanged)               | Existing `CLIWorkflowTests` pass without modification     |
+| C-1 (Unix socket at well-known path)             | `serverBindsAndAcceptsOnSpecifiedPath`                    |
+| C-2 (single daemon instance)                     | `secondDaemonExitsWhenLockHeld`                           |
+| C-3 (cleanup on termination)                     | `serverShutdownRemovesSocketFile`                         |
+
 
 ### Socket-Level Tests (`Tests/Integration/IPCSocketRoundTripTests.swift`)
 
@@ -390,60 +387,68 @@ struct TestServerEnvironment {
 The riskiest assumption is that a Swift actor can reliably accept Unix socket connections, delegate to `IPCServer`, and respond — all within the existing concurrency model. Validate this end-to-end before building the daemon launcher or CLI routing.
 
 **Tasks:**
-- [ ] `UnixSocketServer` actor: POSIX bind/listen/accept, delegate to `IPCServer.handleLine()`, write response
-- [ ] `IPCSocketClient` struct: connect, `hello` handshake, `send()` with `IPCWireCodec`
-- [ ] `TestServerEnvironment` helper with unique temp socket per test
-- [ ] `IPCSocketRoundTripTests`: create via socket, state persistence across connections, shutdown cleanup, latency gate
+
+- `UnixSocketServer` actor: POSIX bind/listen/accept, delegate to `IPCServer.handleLine()`, write response
+- `IPCSocketClient` struct: connect, `hello` handshake, `send()` with `IPCWireCodec`
+- `TestServerEnvironment` helper with unique temp socket per test
+- `IPCSocketRoundTripTests`: create via socket, state persistence across connections, shutdown cleanup, latency gate
 
 **Acceptance:**
-- [ ] `clientCreatesStickyViaSocketAndReceivesCreatedResponse` passes
-- [ ] `statePersistsAcrossSeparateClientConnections` passes
-- [ ] `serverShutdownRemovesSocketFile` passes
-- [ ] Existing `CLIWorkflowTests` and `IPCWorkflowTests` still pass (no regressions)
+
+- `clientCreatesStickyViaSocketAndReceivesCreatedResponse` passes
+- `statePersistsAcrossSeparateClientConnections` passes
+- `serverShutdownRemovesSocketFile` passes
+- Existing `CLIWorkflowTests` and `IPCWorkflowTests` still pass (no regressions)
 
 ### Phase 2: Daemon Mode + Instance Lock
 
 With socket transport proven, build the daemon process that hosts it.
 
 **Tasks:**
-- [ ] `--daemon` flag handling in `EntryPoint.swift`: create directory, acquire `flock`, wire real deps, start `UnixSocketServer`, run `NSApplication`
-- [ ] SIGINT/SIGTERM signal handlers for socket + lock cleanup
-- [ ] File-based instance lock with stale-lock detection
-- [ ] Test: second daemon attempt exits cleanly when lock is held
+
+- `--daemon` flag handling in `EntryPoint.swift`: create directory, acquire `flock`, wire real deps, start `UnixSocketServer`, run `NSApplication`
+- SIGINT/SIGTERM signal handlers for socket + lock cleanup
+- File-based instance lock with stale-lock detection
+- Test: second daemon attempt exits cleanly when lock is held
 
 **Acceptance:**
-- [ ] `stickyspaces --daemon` starts, binds socket, and responds to a manual `IPCSocketClient` connection in a test
-- [ ] Killing the daemon with SIGTERM removes the socket file
-- [ ] A second `stickyspaces --daemon` prints "already running" and exits 1
+
+- `stickyspaces --daemon` starts, binds socket, and responds to a manual `IPCSocketClient` connection in a test
+- Killing the daemon with SIGTERM removes the socket file
+- A second `stickyspaces --daemon` prints "already running" and exits 1
 
 ### Phase 3: Daemon Launcher + CLI Client Runner
 
 With the daemon proven, build the lazy-start glue and the client-side arg translation.
 
 **Tasks:**
-- [ ] `DaemonLauncher.ensureDaemonRunning()`: probe, stale cleanup, spawn, poll
-- [ ] `CLIClientRunner.run(args:socketPath:)`: ensure daemon, translate args to `IPCRequest`, send, format `IPCResponse`
-- [ ] Extract arg-parsing helpers from `StickySpacesCLICommandRunner` into shared utility (or duplicate — they are simple)
-- [ ] Modify `EntryPoint.main()`: `--daemon` → daemon mode, everything else → `CLIClientRunner`
-- [ ] `CLIClientModeTests`: create+list, daemon reuse, error formatting
+
+- `DaemonLauncher.ensureDaemonRunning()`: probe, stale cleanup, spawn, poll
+- `CLIClientRunner.run(args:socketPath:)`: ensure daemon, translate args to `IPCRequest`, send, format `IPCResponse`
+- Extract arg-parsing helpers from `StickySpacesCLICommandRunner` into shared utility (or duplicate — they are simple)
+- Modify `EntryPoint.main()`: `--daemon` → daemon mode, everything else → `CLIClientRunner`
+- `CLIClientModeTests`: create+list, daemon reuse, error formatting
 
 **Acceptance:**
-- [ ] `userCreatesAndListsStickiesThroughClientRunner` passes (against pre-started test server)
-- [ ] Running `swift run stickyspaces new --text "Hello"` from a terminal with no daemon → daemon starts, sticky created, output printed
-- [ ] Running `swift run stickyspaces list` after → shows the sticky from the previous command
-- [ ] All existing test suites remain green
+
+- `userCreatesAndListsStickiesThroughClientRunner` passes (against pre-started test server)
+- Running `swift run stickyspaces new --text "Hello"` from a terminal with no daemon → daemon starts, sticky created, output printed
+- Running `swift run stickyspaces list` after → shows the sticky from the previous command
+- All existing test suites remain green
 
 ### Phase 4: Polish + Hardening
 
 **Tasks:**
-- [ ] Daemon log rotation / size cap for `~/.config/stickyspaces/daemon.log`
-- [ ] Clear test-only env vars when spawning daemon from `DaemonLauncher`
-- [ ] `stickyspaces stop` command to cleanly terminate the daemon (optional, low priority)
-- [ ] Verify `AppKitPanelSync` creates visible panels when daemon is started from CLI binary (manual validation on macOS desktop)
+
+- Daemon log rotation / size cap for `~/.config/stickyspaces/daemon.log`
+- Clear test-only env vars when spawning daemon from `DaemonLauncher`
+- `stickyspaces stop` command to cleanly terminate the daemon (optional, low priority)
+- Verify `AppKitPanelSync` creates visible panels when daemon is started from CLI binary (manual validation on macOS desktop)
 
 **Acceptance:**
-- [ ] End-to-end manual test: `stickyspaces new --text "Hello"` creates a visible floating window on the desktop
-- [ ] `stickyspaces dismiss-all` removes all windows
+
+- End-to-end manual test: `stickyspaces new --text "Hello"` creates a visible floating window on the desktop
+- `stickyspaces dismiss-all` removes all windows
 
 ---
 
@@ -452,3 +457,4 @@ With the daemon proven, build the lazy-start glue and the client-side arg transl
 - **AppKit from CLI binary**: Will `NSApplication.shared.run()` in a CLI executable (no `.app` bundle) reliably create and display `NSPanel` windows? `AppKitPanelSync` already calls `setActivationPolicy(.regular)`, which should work. Validated in Phase 2.
 - **Daemon lifecycle UX**: Should there be a `stickyspaces stop` command? Or is killing the daemon via `pkill` / system shutdown sufficient for MVP? Deferred to Phase 4 as optional.
 - **Daemon log location**: `~/.config/stickyspaces/daemon.log` is the default. Should this be configurable? Not for MVP.
+

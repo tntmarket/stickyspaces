@@ -30,7 +30,7 @@ final class StickyTextView: NSTextView {
         isEditable = true
         isRichText = false
         backgroundColor = StickyContentView.backgroundColor
-        font = NSFont.systemFont(ofSize: 14)
+        font = NSFont.systemFont(ofSize: 12)
         textContainerInset = NSSize(width: 4, height: 4)
         isVerticallyResizable = true
         isHorizontallyResizable = false

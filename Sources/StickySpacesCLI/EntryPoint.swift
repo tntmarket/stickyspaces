@@ -5,6 +5,16 @@ import StickySpacesShared
 struct StickySpacesMain {
     static func main() async {
         let args = Array(CommandLine.arguments.dropFirst())
+
+        if args.first == "--daemon" {
+            do {
+                try await startDaemon()
+            } catch {
+                FileHandle.standardError.write(Data("error: \(error)\n".utf8))
+                Foundation.exit(1)
+            }
+        }
+
         let app = makeAppFromEnvironment()
 
         do {

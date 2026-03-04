@@ -11,11 +11,11 @@ final class StickyContentView: NSView {
     static let cornerRadius: CGFloat = 8
 
     let dragStrip: DragStripView
-    let textView: NSTextView
+    let textView: StickyTextView
 
     init(stickyID: UUID, delegate: StickyPanelDelegate?) {
         dragStrip = DragStripView(stickyID: stickyID, delegate: delegate)
-        textView = NSTextView()
+        textView = StickyTextView(stickyID: stickyID, delegate: delegate)
         super.init(frame: .zero)
 
         wantsLayer = true
@@ -32,15 +32,6 @@ final class StickyContentView: NSView {
         scrollView.borderType = .noBorder
         addSubview(scrollView)
 
-        textView.isEditable = true
-        textView.isRichText = false
-        textView.backgroundColor = Self.backgroundColor
-        textView.font = NSFont.systemFont(ofSize: 14)
-        textView.textContainerInset = NSSize(width: 4, height: 4)
-        textView.isVerticallyResizable = true
-        textView.isHorizontallyResizable = false
-        textView.autoresizingMask = [.width]
-        textView.textContainer?.widthTracksTextView = true
         scrollView.documentView = textView
 
         NSLayoutConstraint.activate([
@@ -58,6 +49,37 @@ final class StickyContentView: NSView {
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError() }
+
+    private var hoverTrackingArea: NSTrackingArea?
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let existing = hoverTrackingArea {
+            removeTrackingArea(existing)
+        }
+        let area = NSTrackingArea(
+            rect: bounds,
+            options: [.mouseEnteredAndExited, .activeAlways],
+            owner: self,
+            userInfo: nil
+        )
+        addTrackingArea(area)
+        hoverTrackingArea = area
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.15
+            dragStrip.dismissButton.animator().alphaValue = 1.0
+        }
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.15
+            dragStrip.dismissButton.animator().alphaValue = 0
+        }
+    }
 
     override func draw(_ dirtyRect: NSRect) {
         Self.backgroundColor.setFill()

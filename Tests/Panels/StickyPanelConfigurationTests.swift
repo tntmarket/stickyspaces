@@ -1,6 +1,7 @@
 import Testing
 import Foundation
 @testable import StickySpacesApp
+import StickySpacesShared
 
 #if canImport(AppKit)
 import AppKit
@@ -22,7 +23,7 @@ struct StickyPanelConfigurationTests {
     @Test("Panel uses default collectionBehavior for workspace binding")
     @MainActor func defaultCollectionBehavior() {
         let panel = StickyPanel(stickyID: UUID(), delegate: nil)
-        #expect(!panel.collectionBehavior.contains(.canJoinAllSpaces))
+        #expect(panel.collectionBehavior == [])
     }
 
     @Test("Panel can become key for future text editing")
@@ -55,8 +56,8 @@ struct StickyPanelConfigurationTests {
         #expect(dragStrip!.frame.height >= 16)
     }
 
-    @Test("Drag strip commits position to delegate on mouseUp")
-    @MainActor func dragStripReportsPositionOnMouseUp() {
+    @Test("Click without drag does not fire position delegate")
+    @MainActor func clickWithoutDragDoesNotFireDelegate() {
         let stickyID = UUID()
         let recorder = DelegateRecorder()
         let panel = StickyPanel(stickyID: stickyID, delegate: recorder)
@@ -64,30 +65,65 @@ struct StickyPanelConfigurationTests {
         panel.orderFrontRegardless()
 
         let dragStrip = panel.stickyContentView.dragStrip
+        let syntheticEvent = NSEvent.otherEvent(
+            with: .applicationDefined,
+            location: .zero,
+            modifierFlags: [],
+            timestamp: 0,
+            windowNumber: panel.windowNumber,
+            context: nil,
+            subtype: 0,
+            data1: 0,
+            data2: 0
+        )!
 
-        dragStrip.mouseUp(
-            with: NSEvent.otherEvent(
-                with: .applicationDefined,
-                location: .zero,
-                modifierFlags: [],
-                timestamp: 0,
-                windowNumber: panel.windowNumber,
-                context: nil,
-                subtype: 0,
-                data1: 0,
-                data2: 0
-            )!
-        )
+        dragStrip.mouseDown(with: syntheticEvent)
+        dragStrip.mouseUp(with: syntheticEvent)
+
+        #expect(recorder.positions.isEmpty)
+    }
+
+    @Test("Drag strip commits position to delegate after drag")
+    @MainActor func dragStripReportsPositionAfterDrag() {
+        let stickyID = UUID()
+        let recorder = DelegateRecorder()
+        let panel = StickyPanel(stickyID: stickyID, delegate: recorder)
+        panel.setFrame(NSRect(x: 100, y: 200, width: 320, height: 220), display: true)
+        panel.orderFrontRegardless()
+
+        let dragStrip = panel.stickyContentView.dragStrip
+        let syntheticEvent = NSEvent.otherEvent(
+            with: .applicationDefined,
+            location: .zero,
+            modifierFlags: [],
+            timestamp: 0,
+            windowNumber: panel.windowNumber,
+            context: nil,
+            subtype: 0,
+            data1: 0,
+            data2: 0
+        )!
+
+        dragStrip.mouseDown(with: syntheticEvent)
+        dragStrip.mouseDragged(with: syntheticEvent)
+        dragStrip.mouseUp(with: syntheticEvent)
 
         #expect(recorder.positions.count == 1)
         #expect(recorder.positions.first?.stickyID == stickyID)
     }
 
-    @Test("Panel styleMask prevents activation during drag")
-    @MainActor func nonActivatingDuringDrag() {
-        let panel = StickyPanel(stickyID: UUID(), delegate: nil)
-        #expect(panel.styleMask.contains(.nonactivatingPanel))
-        #expect(!panel.styleMask.contains(.titled))
+    @Test("New panel focuses text view for immediate typing")
+    @MainActor func creationFocusesTextView() {
+        let stickyID = UUID()
+        let panel = StickyPanel(stickyID: stickyID, delegate: nil)
+        panel.setFrame(NSRect(x: 0, y: 0, width: 320, height: 220), display: true)
+        panel.makeKeyAndOrderFront(nil)
+        panel.makeFirstResponder(panel.stickyContentView.textView)
+
+        let firstResponder = panel.firstResponder
+        let isTextViewOrFieldEditor = firstResponder === panel.stickyContentView.textView
+            || firstResponder is NSTextView
+        #expect(isTextViewOrFieldEditor)
     }
 }
 

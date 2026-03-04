@@ -16,6 +16,7 @@ final class DragStripView: NSView {
 
     private var initialMouseLocation: NSPoint = .zero
     private var initialWindowOrigin: NSPoint = .zero
+    private var didDrag = false
 
     init(stickyID: UUID, delegate: StickyPanelDelegate?) {
         self.stickyID = stickyID
@@ -45,11 +46,13 @@ final class DragStripView: NSView {
     required init?(coder: NSCoder) { fatalError() }
 
     override func mouseDown(with event: NSEvent) {
+        didDrag = false
         initialMouseLocation = NSEvent.mouseLocation
         initialWindowOrigin = window?.frame.origin ?? .zero
     }
 
     override func mouseDragged(with event: NSEvent) {
+        didDrag = true
         let currentMouse = NSEvent.mouseLocation
         let dx = currentMouse.x - initialMouseLocation.x
         let dy = currentMouse.y - initialMouseLocation.y
@@ -61,7 +64,7 @@ final class DragStripView: NSView {
     }
 
     override func mouseUp(with event: NSEvent) {
-        guard let origin = window?.frame.origin else { return }
+        guard didDrag, let origin = window?.frame.origin else { return }
         delegate?.stickyPanel(stickyID, didMoveToPosition: origin)
     }
 }

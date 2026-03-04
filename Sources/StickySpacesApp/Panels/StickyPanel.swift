@@ -28,6 +28,7 @@ final class StickyPanel: NSPanel {
         backgroundColor = .clear
         isOpaque = false
 
+        appearance = NSAppearance(named: .aqua)
         contentView = stickyContentView
     }
 

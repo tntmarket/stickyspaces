@@ -83,9 +83,7 @@ func startDaemon() async throws -> Never {
         let app = NSApplication.shared
         app.delegate = daemonDelegate
         app.setActivationPolicy(.accessory)
+        app.run()
     }
-
-    while true {
-        try? await Task.sleep(for: .seconds(1))
-    }
+    fatalError("NSApplication.run() returned unexpectedly")
 }

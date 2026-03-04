@@ -75,7 +75,12 @@ func bootstrapDaemon() async throws {
     let yabai = FakeYabaiQuerying(currentSpace: WorkspaceID(rawValue: 1))
     let manager = StickyManager(store: store, yabai: yabai, panelSync: panelSync)
     await panelSync.installManagerCallbacks(manager)
-    let ipcServer = IPCServer(manager: manager)
+    let automation = StickySpacesAutomationAPI(
+        manager: manager,
+        panelSync: panelSync,
+        zoomOutPresenter: AppKitZoomOutOverviewPresenter()
+    )
+    let ipcServer = IPCServer(manager: manager, automation: automation)
     let server = UnixSocketServer(socketPath: socketPath, ipcServer: ipcServer)
 
     try await server.start()

@@ -90,16 +90,19 @@ final class StickyContentView: NSView {
     }
 
     private func resizeEdge(at point: NSPoint) -> ResizeEdge {
-        let cornerZone = Self.cornerZoneSize
-        if point.x > bounds.width - cornerZone && point.y < cornerZone {
-            return [.right, .bottom]
-        }
+        let c = Self.cornerZoneSize
+        let w = bounds.width, h = bounds.height
+
+        if point.x > w - c && point.y < c { return [.right, .bottom] }
+        if point.x < c && point.y < c { return [.left, .bottom] }
+        if point.x > w - c && point.y > h - c { return [.right, .top] }
+        if point.x < c && point.y > h - c { return [.left, .top] }
 
         let zone = Self.edgeZoneWidth
         var edge: ResizeEdge = []
         if point.x < zone { edge.insert(.left) }
-        if point.x > bounds.width - zone { edge.insert(.right) }
-        if point.y > bounds.height - zone { edge.insert(.top) }
+        if point.x > w - zone { edge.insert(.right) }
+        if point.y > h - zone { edge.insert(.top) }
         if point.y < zone { edge.insert(.bottom) }
         return edge
     }
@@ -305,7 +308,26 @@ final class StickyContentView: NSView {
         let visualRect = bounds.insetBy(dx: Self.resizeMargin, dy: Self.resizeMargin)
         Self.backgroundColor.setFill()
         NSBezierPath(roundedRect: visualRect, xRadius: Self.cornerRadius, yRadius: Self.cornerRadius).fill()
+        drawResizeDebugOverlay()
         super.draw(dirtyRect)
+    }
+
+    private func drawResizeDebugOverlay() {
+        let w = bounds.width, h = bounds.height
+        let zone = Self.edgeZoneWidth
+        let c = Self.cornerZoneSize
+
+        NSColor.red.withAlphaComponent(0.15).setFill()
+        NSBezierPath(rect: NSRect(x: 0, y: 0, width: zone, height: h)).fill()
+        NSBezierPath(rect: NSRect(x: w - zone, y: 0, width: zone, height: h)).fill()
+        NSBezierPath(rect: NSRect(x: 0, y: 0, width: w, height: zone)).fill()
+        NSBezierPath(rect: NSRect(x: 0, y: h - zone, width: w, height: zone)).fill()
+
+        NSColor.blue.withAlphaComponent(0.2).setFill()
+        NSBezierPath(rect: NSRect(x: w - c, y: 0, width: c, height: c)).fill()
+        NSBezierPath(rect: NSRect(x: 0, y: 0, width: c, height: c)).fill()
+        NSBezierPath(rect: NSRect(x: w - c, y: h - c, width: c, height: c)).fill()
+        NSBezierPath(rect: NSRect(x: 0, y: h - c, width: c, height: c)).fill()
     }
 }
 

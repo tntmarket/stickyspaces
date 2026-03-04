@@ -1,0 +1,52 @@
+import Foundation
+
+#if canImport(AppKit)
+import AppKit
+
+@MainActor
+final class DragStripView: NSView {
+    static let height: CGFloat = 16
+    static let backgroundColor = NSColor(
+        calibratedRed: 0.95, green: 0.931, blue: 0.7125, alpha: 1.0
+    )
+
+    let stickyID: UUID
+    weak var delegate: StickyPanelDelegate?
+
+    private var initialMouseLocation: NSPoint = .zero
+    private var initialWindowOrigin: NSPoint = .zero
+
+    init(stickyID: UUID, delegate: StickyPanelDelegate?) {
+        self.stickyID = stickyID
+        self.delegate = delegate
+        super.init(frame: .zero)
+        wantsLayer = true
+        layer?.backgroundColor = Self.backgroundColor.cgColor
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError() }
+
+    override func mouseDown(with event: NSEvent) {
+        initialMouseLocation = NSEvent.mouseLocation
+        initialWindowOrigin = window?.frame.origin ?? .zero
+    }
+
+    override func mouseDragged(with event: NSEvent) {
+        let currentMouse = NSEvent.mouseLocation
+        let dx = currentMouse.x - initialMouseLocation.x
+        let dy = currentMouse.y - initialMouseLocation.y
+        let newOrigin = NSPoint(
+            x: initialWindowOrigin.x + dx,
+            y: initialWindowOrigin.y + dy
+        )
+        window?.setFrameOrigin(newOrigin)
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        guard let origin = window?.frame.origin else { return }
+        delegate?.stickyPanel(stickyID, didMoveToPosition: origin)
+    }
+}
+
+#endif

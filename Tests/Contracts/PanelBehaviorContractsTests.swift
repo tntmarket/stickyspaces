@@ -10,18 +10,13 @@ import AppKit
 struct PanelBehaviorContractsTests {
     @Test("Sticky panel stays visible when app deactivates")
     @MainActor func stickyPanelStaysVisibleWhenAppDeactivates() {
-        let sticky = StickyNote(text: "Focus context", workspaceID: WorkspaceID(rawValue: 3))
-        let registry = AppKitPanelRegistry()
-        let panel = registry.makePanel(sticky: sticky)
-
+        let panel = StickyPanel(stickyID: UUID(), delegate: nil)
         #expect(panel.hidesOnDeactivate == false)
     }
 
     @Test("Sticky panel floats above application windows without activating")
     @MainActor func stickyPanelFloatsWithoutActivating() {
-        let sticky = StickyNote(text: "Stay on top", workspaceID: WorkspaceID(rawValue: 5))
-        let registry = AppKitPanelRegistry()
-        let panel = registry.makePanel(sticky: sticky)
+        let panel = StickyPanel(stickyID: UUID(), delegate: nil)
 
         #expect(panel.isFloatingPanel == true)
         #expect(panel.level == .floating)

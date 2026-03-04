@@ -169,6 +169,9 @@ private final class ZoomOutOverviewWindowController {
         let screenFrame = NSScreen.main?.frame ?? panel.frame
         panel.setFrame(screenFrame, display: true)
         panel.orderOut(nil)
+        CATransaction.flush()
+        try? await Task.sleep(for: .milliseconds(32))
+
         view.frame = panel.contentView?.bounds ?? screenFrame
         view.snapshot = snapshot
 

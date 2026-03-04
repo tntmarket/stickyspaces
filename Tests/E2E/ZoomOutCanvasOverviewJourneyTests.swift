@@ -237,6 +237,42 @@ struct ZoomOutCanvasOverviewJourneyTests {
         #expect(afterWorkspace == beforeWorkspace)
     }
 
+    @Test("repeated prepare after animation still captures faithful desktop background")
+    func repeatedPrepareAfterAnimationStillCapturesFaithfulDesktopBackground() async throws {
+        guard VideoBackedScenarioSession.isEnabled else {
+            return
+        }
+        let session = try await makeSession(scenarioName: "zoom-out-repeated-prepare-fidelity")
+        defer { Task { try? await session.harness.cleanup() } }
+
+        _ = try await session.harness.step(.wait(milliseconds: 100))
+
+        _ = try await session.harness.prepareZoomOutOverlay()
+        let frameAfterFirstPrepare = try await session.harness.captureScreenshot(
+            name: "frame-after-first-prepare"
+        )
+
+        try await session.harness.animatePreparedZoomOutOverlay()
+
+        _ = try await session.harness.prepareZoomOutOverlay()
+        let captureResult = await session.harness.backgroundCaptureResult()
+        #expect(captureResult?.source == .liveCapture)
+        let frameAfterSecondPrepare = try await session.harness.captureScreenshot(
+            name: "frame-after-second-prepare"
+        )
+
+        let diff = try ScreenshotMetrics.diff(
+            baselineURL: frameAfterFirstPrepare,
+            candidateURL: frameAfterSecondPrepare,
+            region: .stableCanvas,
+            perChannelTolerance: 2,
+            sampleStride: 2
+        )
+        #expect(diff.sampledPixelCount > 0)
+        #expect(diff.changedPixelRatio <= 0.05)
+        #expect(diff.maxChannelDelta <= 100)
+    }
+
     private func fileSizeBytes(at url: URL) throws -> Int64 {
         let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
         let number = attributes[.size] as? NSNumber ?? 0

@@ -12,6 +12,7 @@ public enum DaemonPaths {
 
 nonisolated(unsafe) var cleanupSocketCStr: UnsafeMutablePointer<CChar>?
 nonisolated(unsafe) var cleanupLockCStr: UnsafeMutablePointer<CChar>?
+nonisolated(unsafe) var daemonServer: UnixSocketServer?
 
 func performDaemonCleanup() {
     if let cStr = cleanupSocketCStr { unlink(cStr) }
@@ -78,4 +79,5 @@ func bootstrapDaemon() async throws {
     let server = UnixSocketServer(socketPath: socketPath, ipcServer: ipcServer)
 
     try await server.start()
+    daemonServer = server
 }

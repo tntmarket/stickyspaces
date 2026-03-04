@@ -12,6 +12,8 @@ All tests should follow [testing.md](docs/testing.md)
 
 This project uses **bd** (beads) for issue tracking. Run `bd onboard` to get started.
 
+When filing issues, include enough context so that the issue can be resolved from a fresh context window. Linking to resources is permitted.
+
 ### Landing the Plane (Session Completion)
 
 **When ending a work session**, you MUST complete ALL steps below. Work is NOT complete until `git push` succeeds.

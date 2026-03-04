@@ -5,7 +5,7 @@ import AppKit
 
 @MainActor
 final class DragStripView: NSView {
-    static let height: CGFloat = 16
+    static let height: CGFloat = 12
     static let backgroundColor = NSColor(
         calibratedRed: 0.95, green: 0.931, blue: 0.7125, alpha: 1.0
     )

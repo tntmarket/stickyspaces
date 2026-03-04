@@ -59,14 +59,15 @@ struct IPCSocketRoundTripTests {
         let env = try await TestServerEnvironment()
         defer { Task { await env.shutdown() } }
 
-        let client = try IPCSocketClient(socketPath: env.socketPath)
         let clock = ContinuousClock()
         var durations: [Duration] = []
 
         for _ in 0..<30 {
+            let client = try IPCSocketClient(socketPath: env.socketPath)
             let start = clock.now
             _ = try await client.send(.list(space: nil))
             durations.append(clock.now - start)
+            client.close()
         }
 
         durations.sort()

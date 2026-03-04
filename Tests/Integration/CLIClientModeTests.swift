@@ -38,12 +38,13 @@ struct CLIClientModeTests {
             try await DaemonLauncher.ensureDaemonRunning(socketPath: badPath)
             Issue.record("should have thrown")
         } catch {
-            #expect("\(error)".count > 0)
+            let message = "\(error)"
+            #expect(message.contains("not running") || message.contains("daemon"))
         }
     }
 
-    @Test("unknown command returns usage help via socket round-trip")
-    func unknownCommandReturnsUsageViaSocketRoundTrip() async throws {
+    @Test("unknown command returns usage help without contacting daemon")
+    func unknownCommandReturnsUsageWithoutContactingDaemon() async throws {
         let env = try await TestServerEnvironment()
         defer { Task { await env.shutdown() } }
 
@@ -51,5 +52,40 @@ struct CLIClientModeTests {
             args: ["nonexistent-command"], socketPath: env.socketPath
         )
         #expect(output.contains("stickyspaces commands:") || output.contains("usage"))
+    }
+
+    @Test("edit and dismiss return informative output with sticky ID")
+    func editAndDismissReturnInformativeOutput() async throws {
+        let env = try await TestServerEnvironment()
+        defer { Task { await env.shutdown() } }
+
+        let newOutput = try await CLIClientRunner.run(
+            args: ["new", "--text", "Review notes"], socketPath: env.socketPath
+        )
+        let id = newOutput.components(separatedBy: "id: ")[1].components(separatedBy: " ").first!
+
+        let editOutput = try await CLIClientRunner.run(
+            args: ["edit", id, "--text", "Updated notes"], socketPath: env.socketPath
+        )
+        #expect(editOutput.contains("edited"))
+        #expect(editOutput.contains(id))
+
+        let dismissOutput = try await CLIClientRunner.run(
+            args: ["dismiss", id], socketPath: env.socketPath
+        )
+        #expect(dismissOutput.contains("dismissed"))
+        #expect(dismissOutput.contains(id))
+    }
+
+    @Test("status returns formatted runtime snapshot")
+    func statusReturnsFormattedSnapshot() async throws {
+        let env = try await TestServerEnvironment()
+        defer { Task { await env.shutdown() } }
+
+        let output = try await CLIClientRunner.run(
+            args: ["status"], socketPath: env.socketPath
+        )
+        #expect(output.contains("running:"))
+        #expect(output.contains("mode:"))
     }
 }

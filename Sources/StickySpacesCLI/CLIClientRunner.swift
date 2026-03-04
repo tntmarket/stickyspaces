@@ -7,13 +7,17 @@ public enum CLIClientRunner {
             return usage()
         }
 
-        try await DaemonLauncher.ensureDaemonRunning(socketPath: socketPath)
-
-        let client = try IPCSocketClient(socketPath: socketPath)
+        let client: IPCSocketClient
+        do {
+            client = try IPCSocketClient(socketPath: socketPath)
+        } catch is IPCSocketClientError {
+            try await DaemonLauncher.ensureDaemonRunning(socketPath: socketPath)
+            client = try IPCSocketClient(socketPath: socketPath)
+        }
         defer { client.close() }
 
         let response = try await client.send(request)
-        return formatResponse(response)
+        return formatResponse(response, for: request)
     }
 
     static func translateArgs(_ args: [String]) -> IPCRequest? {
@@ -69,7 +73,10 @@ public enum CLIClientRunner {
         }
     }
 
-    static func formatResponse(_ response: IPCResponse) -> String {
+    static func formatResponse(_ response: IPCResponse, for request: IPCRequest) -> String {
+        if case .ok = response {
+            return formatOkResponse(for: request)
+        }
         switch response {
         case .hello(let serverVersion, let minClient, let capabilities):
             return "hello server-version: \(serverVersion) min-client: \(minClient) capabilities: read-space=\(capabilities.canReadCurrentSpace) list-spaces=\(capabilities.canListSpaces) focus-space=\(capabilities.canFocusSpace) diff-topology=\(capabilities.canDiffTopology)"
@@ -116,6 +123,19 @@ public enum CLIClientRunner {
             return "unsupported mode: \(info.reason)"
         case .error(let message):
             return "error: \(message)"
+        }
+    }
+
+    private static func formatOkResponse(for request: IPCRequest) -> String {
+        switch request {
+        case .edit(let id, _): return "edited id: \(id)"
+        case .dismiss(let id): return "dismissed id: \(id)"
+        case .dismissAll: return "dismissed all"
+        case .move(let id, _, _): return "moved id: \(id)"
+        case .resize(let id, _, _): return "resized id: \(id)"
+        case .zoomIn(let space): return "zoomed-in workspace: \(space.rawValue)"
+        case .moveRegion(let space, _, _): return "moved region for workspace \(space.rawValue)"
+        default: return "ok"
         }
     }
 

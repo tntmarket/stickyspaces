@@ -2,11 +2,14 @@ import Darwin
 import Foundation
 
 public enum DaemonLaunchError: Error, CustomStringConvertible {
+    case notRunning(socketPath: String)
     case timeout(logPath: String)
     case spawnFailed(reason: String)
 
     public var description: String {
         switch self {
+        case .notRunning(let path):
+            return "Daemon is not running at \(path) and cannot be auto-started for custom socket paths"
         case .timeout(let logPath):
             return "Daemon did not become ready within 3 seconds. Check log: \(logPath)"
         case .spawnFailed(let reason):
@@ -19,8 +22,12 @@ public enum DaemonLauncher {
     public static func ensureDaemonRunning(socketPath: String) async throws {
         if probeSocket(at: socketPath) { return }
 
+        guard socketPath == DaemonPaths.socketPath else {
+            throw DaemonLaunchError.notRunning(socketPath: socketPath)
+        }
+
         try cleanStaleSocket(socketPath: socketPath)
-        try spawnDaemon(socketPath: socketPath)
+        try spawnDaemon()
         try await pollUntilReady(socketPath: socketPath)
     }
 
@@ -47,7 +54,7 @@ public enum DaemonLauncher {
         }
     }
 
-    private static func spawnDaemon(socketPath: String) throws {
+    private static func spawnDaemon() throws {
         let executablePath = ProcessInfo.processInfo.arguments[0]
         let logPath = DaemonPaths.configDir + "/daemon.log"
 

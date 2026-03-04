@@ -44,6 +44,7 @@ private final class AppKitPanelRegistry: StickyPanelDelegate {
     func hide(stickyID: UUID) {
         guard let panel = panelsByStickyID.removeValue(forKey: stickyID) else { return }
         workspaceByStickyID.removeValue(forKey: stickyID)
+        panel.stickyContentView.textView.flushPendingChange()
         panel.orderOut(nil)
         panel.close()
     }
@@ -93,7 +94,9 @@ private final class AppKitPanelRegistry: StickyPanelDelegate {
         )
         panel.setFrame(rect, display: true)
         let textView = panel.stickyContentView.textView
-        if textView.string != sticky.text {
+        let isEditing = panel.firstResponder === textView
+            || panel.fieldEditor(false, for: textView) === panel.firstResponder
+        if !isEditing && textView.string != sticky.text {
             textView.string = sticky.text
         }
     }
@@ -120,8 +123,11 @@ public final class AppKitPanelSync: PanelSyncing, @unchecked Sendable {
         resolvedRegistry.onSizeChanged = { [weak manager] stickyID, size, position in
             guard let manager else { return }
             Task {
-                try? await manager.updateStickySize(id: stickyID, width: size.width, height: size.height)
-                try? await manager.updateStickyPosition(id: stickyID, x: position.x, y: position.y)
+                try? await manager.updateStickyFrame(
+                    id: stickyID,
+                    x: position.x, y: position.y,
+                    width: size.width, height: size.height
+                )
             }
         }
         resolvedRegistry.onTextChanged = { [weak manager] stickyID, text in

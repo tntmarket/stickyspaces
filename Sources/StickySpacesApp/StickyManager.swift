@@ -104,6 +104,14 @@ public actor StickyManager {
         await panelSync.update(sticky: updated)
     }
 
+    public func updateStickyFrame(id: UUID, x: Double, y: Double, width: Double, height: Double) async throws {
+        let updated = await store.updateFrame(stickyID: id, x: x, y: y, width: width, height: height)
+        guard let updated else {
+            throw StickyManagerError.stickyNotFound(id)
+        }
+        await panelSync.update(sticky: updated)
+    }
+
     public func getSticky(id: UUID) async throws -> StickyNote {
         guard let note = await store.sticky(id: id) else {
             throw StickyManagerError.stickyNotFound(id)

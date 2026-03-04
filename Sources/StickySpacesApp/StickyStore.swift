@@ -47,6 +47,16 @@ public actor StickyStore {
         return note
     }
 
+    public func updateFrame(stickyID: UUID, x: Double, y: Double, width: Double, height: Double) -> StickyNote? {
+        guard var note = notes[stickyID] else {
+            return nil
+        }
+        note.position = CGPoint(x: x, y: y)
+        note.size = CGSize(width: width, height: height)
+        notes[stickyID] = note
+        return note
+    }
+
     public func sticky(id: UUID) -> StickyNote? {
         notes[id]
     }

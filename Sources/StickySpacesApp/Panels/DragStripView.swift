@@ -33,7 +33,7 @@ final class DragStripView: NSView {
         NSLayoutConstraint.activate([
             dismissButton.widthAnchor.constraint(equalToConstant: DismissButton.size),
             dismissButton.heightAnchor.constraint(equalToConstant: DismissButton.size),
-            dismissButton.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -4),
+            dismissButton.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 4),
             dismissButton.centerYAnchor.constraint(equalTo: centerYAnchor),
         ])
     }

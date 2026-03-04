@@ -308,26 +308,7 @@ final class StickyContentView: NSView {
         let visualRect = bounds.insetBy(dx: Self.resizeMargin, dy: Self.resizeMargin)
         Self.backgroundColor.setFill()
         NSBezierPath(roundedRect: visualRect, xRadius: Self.cornerRadius, yRadius: Self.cornerRadius).fill()
-        drawResizeDebugOverlay()
         super.draw(dirtyRect)
-    }
-
-    private func drawResizeDebugOverlay() {
-        let w = bounds.width, h = bounds.height
-        let zone = Self.edgeZoneWidth
-        let c = Self.cornerZoneSize
-
-        NSColor.red.withAlphaComponent(0.15).setFill()
-        NSBezierPath(rect: NSRect(x: 0, y: 0, width: zone, height: h)).fill()
-        NSBezierPath(rect: NSRect(x: w - zone, y: 0, width: zone, height: h)).fill()
-        NSBezierPath(rect: NSRect(x: 0, y: 0, width: w, height: zone)).fill()
-        NSBezierPath(rect: NSRect(x: 0, y: h - zone, width: w, height: zone)).fill()
-
-        NSColor.blue.withAlphaComponent(0.2).setFill()
-        NSBezierPath(rect: NSRect(x: w - c, y: 0, width: c, height: c)).fill()
-        NSBezierPath(rect: NSRect(x: 0, y: 0, width: c, height: c)).fill()
-        NSBezierPath(rect: NSRect(x: w - c, y: h - c, width: c, height: c)).fill()
-        NSBezierPath(rect: NSRect(x: 0, y: h - c, width: c, height: c)).fill()
     }
 }
 

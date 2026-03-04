@@ -112,6 +112,34 @@ struct IPCWorkflowTests {
         #expect(preview.displayHeader == "Ship overview polish")
     }
 
+    @Test("zoom-out triggers the visual overlay presenter")
+    func zoomOutTriggersVisualOverlayPresenter() async throws {
+        let workspace = WorkspaceID(rawValue: 3)
+        let yabai = FakeYabaiQuerying(currentSpace: workspace)
+        await yabai.setTopologySnapshot(
+            WorkspaceTopologySnapshot(
+                spaces: [WorkspaceDescriptor(workspaceID: workspace, index: 1, displayID: 1)],
+                primaryDisplayID: 1
+            )
+        )
+        let presenter = SpyZoomOutOverviewPresenter()
+        let manager = StickyManager(
+            store: StickyStore(),
+            yabai: yabai,
+            panelSync: InMemoryPanelSync()
+        )
+        let automation = StickySpacesAutomationAPI(
+            manager: manager,
+            zoomOutPresenter: presenter
+        )
+        let server = IPCServer(manager: manager, automation: automation)
+
+        _ = try canvasSnapshot(from: try await send(request: .zoomOut, to: server))
+
+        #expect(await presenter.prepareCalled)
+        #expect(await presenter.animateCalled)
+    }
+
     @Test("zoom-out returns canvas snapshot over IPC")
     func zoomOutReturnsCanvasSnapshotOverIPC() async throws {
         let workspace1 = WorkspaceID(rawValue: 3)
@@ -261,5 +289,20 @@ struct IPCWorkflowTests {
         var description: String {
             "expected \(expected), got \(String(describing: actual))"
         }
+    }
+}
+
+private actor SpyZoomOutOverviewPresenter: ZoomOutOverviewPresenting {
+    var prepareCalled = false
+    var animateCalled = false
+
+    func present(snapshot: CanvasSnapshot, heroSticky: StickyNote?) async {}
+
+    func preparePresentation(snapshot: CanvasSnapshot, heroSticky: StickyNote?) async {
+        prepareCalled = true
+    }
+
+    func animatePreparedPresentation() async {
+        animateCalled = true
     }
 }

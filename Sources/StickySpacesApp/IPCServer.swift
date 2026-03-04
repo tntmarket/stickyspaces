@@ -93,7 +93,7 @@ public actor IPCServer {
             }
         case .zoomOut:
             do {
-                let response = try await automation.perform(.zoomOutSnapshot)
+                let response = try await automation.perform(.presentZoomOutOverview)
                 guard case .canvasSnapshot(let snapshot) = response else {
                     return .error("cannot zoom-out")
                 }

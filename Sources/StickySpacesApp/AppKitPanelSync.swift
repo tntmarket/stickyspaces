@@ -19,7 +19,7 @@ final class AppKitPanelRegistry {
         }
         workspaceByStickyID[sticky.id] = sticky.workspaceID
         apply(sticky: sticky, to: panel)
-        panel.makeKeyAndOrderFront(nil)
+        panel.orderFrontRegardless()
     }
 
     func update(sticky: StickyNote) {
@@ -55,7 +55,7 @@ final class AppKitPanelRegistry {
         return Set(ids)
     }
 
-    private func makePanel(sticky: StickyNote) -> NSPanel {
+    func makePanel(sticky: StickyNote) -> NSPanel {
         let rect = NSRect(
             x: sticky.position.x,
             y: sticky.position.y,
@@ -64,13 +64,15 @@ final class AppKitPanelRegistry {
         )
         let panel = NSPanel(
             contentRect: rect,
-            styleMask: [.titled, .closable, .resizable, .fullSizeContentView],
+            styleMask: [.titled, .closable, .resizable, .fullSizeContentView, .nonactivatingPanel],
             backing: .buffered,
             defer: false
         )
         panel.title = "Sticky \(sticky.workspaceID.rawValue)"
         panel.level = .floating
         panel.isFloatingPanel = true
+        panel.hidesOnDeactivate = false
+        panel.becomesKeyOnlyIfNeeded = true
         panel.collectionBehavior = [.canJoinAllSpaces]
 
         let textView = NSTextView(frame: panel.contentView?.bounds ?? .zero)
@@ -110,8 +112,7 @@ public actor AppKitPanelSync: PanelSyncing {
 
     public func show(sticky: StickyNote) async {
         await MainActor.run {
-            NSApplication.shared.setActivationPolicy(.regular)
-            NSApplication.shared.activate(ignoringOtherApps: true)
+            NSApplication.shared.setActivationPolicy(.accessory)
             registry.show(sticky: sticky)
         }
     }

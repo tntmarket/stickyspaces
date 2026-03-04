@@ -1,6 +1,8 @@
 import Foundation
 import Testing
 
+@testable import StickySpacesCLI
+
 @Suite("Daemon mode instance lock prevents multiple daemons")
 struct DaemonModeTests {
     @Test("second flock attempt fails when lock is already held")
@@ -25,5 +27,24 @@ struct DaemonModeTests {
 
         close(fd2)
         close(fd1)
+    }
+
+    @Test("cleanup removes both socket and lock files")
+    func cleanupRemovesSocketAndLockFiles() throws {
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("daemon-cleanup-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let socketPath = tempDir.appendingPathComponent("sock").path
+        let lockPath = tempDir.appendingPathComponent("instance.lock").path
+        FileManager.default.createFile(atPath: socketPath, contents: nil)
+        FileManager.default.createFile(atPath: lockPath, contents: nil)
+
+        setDaemonCleanupPaths(socket: socketPath, lock: lockPath)
+        performDaemonCleanup()
+
+        #expect(!FileManager.default.fileExists(atPath: socketPath))
+        #expect(!FileManager.default.fileExists(atPath: lockPath))
     }
 }

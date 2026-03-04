@@ -10,12 +10,23 @@ public enum DaemonPaths {
     public static let lockPath = configDir + "/instance.lock"
 }
 
-private nonisolated(unsafe) var cleanupSocketPath: String = ""
-private nonisolated(unsafe) var cleanupLockPath: String = ""
+nonisolated(unsafe) var cleanupSocketCStr: UnsafeMutablePointer<CChar>?
+nonisolated(unsafe) var cleanupLockCStr: UnsafeMutablePointer<CChar>?
+
+func performDaemonCleanup() {
+    if let cStr = cleanupSocketCStr { unlink(cStr) }
+    if let cStr = cleanupLockCStr { unlink(cStr) }
+}
+
+func setDaemonCleanupPaths(socket: String, lock: String) {
+    cleanupSocketCStr?.deallocate()
+    cleanupLockCStr?.deallocate()
+    cleanupSocketCStr = strdup(socket)
+    cleanupLockCStr = strdup(lock)
+}
 
 private func signalHandler(_: Int32) {
-    unlink(cleanupSocketPath)
-    unlink(cleanupLockPath)
+    performDaemonCleanup()
     _exit(0)
 }
 
@@ -23,6 +34,11 @@ func startDaemon() async throws -> Never {
     let configDir = DaemonPaths.configDir
     let socketPath = DaemonPaths.socketPath
     let lockPath = DaemonPaths.lockPath
+
+    signal(SIGINT, signalHandler)
+    signal(SIGTERM, signalHandler)
+    signal(SIGHUP, signalHandler)
+    signal(SIGPIPE, SIG_IGN)
 
     try FileManager.default.createDirectory(
         atPath: configDir,
@@ -42,11 +58,7 @@ func startDaemon() async throws -> Never {
         Foundation.exit(1)
     }
 
-    cleanupSocketPath = socketPath
-    cleanupLockPath = lockPath
-    signal(SIGINT, signalHandler)
-    signal(SIGTERM, signalHandler)
-    signal(SIGPIPE, SIG_IGN)
+    setDaemonCleanupPaths(socket: socketPath, lock: lockPath)
 
     let store = StickyStore()
     let panelSync = AppKitPanelSync()

@@ -13,6 +13,7 @@ final class StickyContentView: NSView {
     static let minimumHeight: CGFloat = 80
 
     private static let edgeZoneWidth: CGFloat = 5
+    private static let cornerZoneSize: CGFloat = 12
 
     let dragStrip: DragStripView
     let textView: StickyTextView
@@ -40,6 +41,7 @@ final class StickyContentView: NSView {
         let scrollView = NSScrollView()
         scrollView.translatesAutoresizingMaskIntoConstraints = false
         scrollView.hasVerticalScroller = true
+        scrollView.autohidesScrollers = true
         scrollView.drawsBackground = false
         scrollView.borderType = .noBorder
         addSubview(scrollView)
@@ -75,6 +77,11 @@ final class StickyContentView: NSView {
     }
 
     private func resizeEdge(at point: NSPoint) -> ResizeEdge {
+        let cornerZone = Self.cornerZoneSize
+        if point.x > bounds.width - cornerZone && point.y < cornerZone {
+            return [.right, .bottom]
+        }
+
         let zone = Self.edgeZoneWidth
         var edge: ResizeEdge = []
         if point.x < zone { edge.insert(.left) }
@@ -140,7 +147,14 @@ final class StickyContentView: NSView {
 
     override func mouseMoved(with event: NSEvent) {
         let localPoint = convert(event.locationInWindow, from: nil)
-        updateCursor(for: resizeEdge(at: localPoint))
+        let edge = resizeEdge(at: localPoint)
+        if !edge.isEmpty {
+            updateCursor(for: edge)
+        } else if dragStrip.frame.contains(localPoint) {
+            NSCursor.arrow.set()
+        } else {
+            NSCursor.iBeam.set()
+        }
     }
 
     override func mouseDown(with event: NSEvent) {
@@ -238,7 +252,23 @@ final class StickyContentView: NSView {
     override func draw(_ dirtyRect: NSRect) {
         Self.backgroundColor.setFill()
         NSBezierPath(roundedRect: bounds, xRadius: Self.cornerRadius, yRadius: Self.cornerRadius).fill()
+        drawResizeGrip()
         super.draw(dirtyRect)
+    }
+
+    private func drawResizeGrip() {
+        let color = NSColor(calibratedWhite: 0.6, alpha: 0.4)
+        color.setStroke()
+        let inset: CGFloat = 4
+        let spacing: CGFloat = 4
+        for i in 0..<3 {
+            let offset = CGFloat(i + 1) * spacing
+            let path = NSBezierPath()
+            path.move(to: NSPoint(x: bounds.maxX - inset, y: inset + offset))
+            path.line(to: NSPoint(x: bounds.maxX - inset - offset, y: inset))
+            path.lineWidth = 1.0
+            path.stroke()
+        }
     }
 }
 

@@ -20,7 +20,7 @@ public struct StickyNote: Identifiable, Codable, Sendable, Equatable {
         text: String,
         header: String? = nil,
         position: CGPoint = CGPoint(x: 80, y: 80),
-        size: CGSize = CGSize(width: 320, height: 220),
+        size: CGSize = CGSize(width: 250, height: 170),
         workspaceID: WorkspaceID,
         createdAt: Date = Date(),
         focusIntent: StickyFocusIntent = .focusTextInputImmediately

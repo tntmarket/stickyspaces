@@ -30,6 +30,15 @@ private func signalHandler(_: Int32) {
     _exit(0)
 }
 
+@MainActor
+private class DaemonAppDelegate: NSObject, NSApplicationDelegate {
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        .terminateCancel
+    }
+}
+
+@MainActor private let daemonDelegate = DaemonAppDelegate()
+
 func startDaemon() async throws -> Never {
     let configDir = DaemonPaths.configDir
     let socketPath = DaemonPaths.socketPath
@@ -68,9 +77,14 @@ func startDaemon() async throws -> Never {
     let server = UnixSocketServer(socketPath: socketPath, ipcServer: ipcServer)
 
     try await server.start()
+
     await MainActor.run {
-        NSApplication.shared.run()
+        let app = NSApplication.shared
+        app.delegate = daemonDelegate
+        app.setActivationPolicy(.accessory)
     }
 
-    fatalError("NSApplication.shared.run() returned unexpectedly")
+    while true {
+        try? await Task.sleep(for: .seconds(1))
+    }
 }

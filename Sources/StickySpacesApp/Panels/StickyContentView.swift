@@ -11,6 +11,7 @@ final class StickyContentView: NSView {
     static let cornerRadius: CGFloat = 8
     static let minimumWidth: CGFloat = 120
     static let minimumHeight: CGFloat = 80
+    static let resizeMargin: CGFloat = 3
 
     private static let edgeZoneWidth: CGFloat = 5
     private static let cornerZoneSize: CGFloat = 12
@@ -32,11 +33,16 @@ final class StickyContentView: NSView {
         super.init(frame: .zero)
 
         wantsLayer = true
-        layer?.cornerRadius = Self.cornerRadius
-        layer?.masksToBounds = true
+
+        let container = NSView()
+        container.wantsLayer = true
+        container.layer?.cornerRadius = Self.cornerRadius
+        container.layer?.masksToBounds = true
+        container.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(container)
 
         dragStrip.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(dragStrip)
+        container.addSubview(dragStrip)
 
         let scrollView = NSScrollView()
         scrollView.translatesAutoresizingMaskIntoConstraints = false
@@ -45,20 +51,26 @@ final class StickyContentView: NSView {
         scrollView.scrollerStyle = .overlay
         scrollView.drawsBackground = false
         scrollView.borderType = .noBorder
-        addSubview(scrollView)
+        container.addSubview(scrollView)
 
         scrollView.documentView = textView
 
+        let m = Self.resizeMargin
         NSLayoutConstraint.activate([
-            dragStrip.topAnchor.constraint(equalTo: topAnchor),
-            dragStrip.leadingAnchor.constraint(equalTo: leadingAnchor),
-            dragStrip.trailingAnchor.constraint(equalTo: trailingAnchor),
+            container.topAnchor.constraint(equalTo: topAnchor, constant: m),
+            container.leadingAnchor.constraint(equalTo: leadingAnchor, constant: m),
+            container.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -m),
+            container.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -m),
+
+            dragStrip.topAnchor.constraint(equalTo: container.topAnchor),
+            dragStrip.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            dragStrip.trailingAnchor.constraint(equalTo: container.trailingAnchor),
             dragStrip.heightAnchor.constraint(equalToConstant: DragStripView.height),
 
             scrollView.topAnchor.constraint(equalTo: dragStrip.bottomAnchor),
-            scrollView.leadingAnchor.constraint(equalTo: leadingAnchor),
-            scrollView.trailingAnchor.constraint(equalTo: trailingAnchor),
-            scrollView.bottomAnchor.constraint(equalTo: bottomAnchor),
+            scrollView.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            scrollView.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+            scrollView.bottomAnchor.constraint(equalTo: container.bottomAnchor),
         ])
     }
 
@@ -151,7 +163,7 @@ final class StickyContentView: NSView {
         let edge = resizeEdge(at: localPoint)
         if !edge.isEmpty {
             updateCursor(for: edge)
-        } else if dragStrip.frame.contains(localPoint) {
+        } else if dragStrip.convert(dragStrip.bounds, to: self).contains(localPoint) {
             NSCursor.arrow.set()
         } else {
             NSCursor.iBeam.set()
@@ -215,17 +227,19 @@ final class StickyContentView: NSView {
             y = initialResizeFrame.origin.y + dy
         }
 
-        if w < Self.minimumWidth {
+        let minW = Self.minimumWidth + 2 * Self.resizeMargin
+        let minH = Self.minimumHeight + 2 * Self.resizeMargin
+        if w < minW {
             if activeResizeEdge.contains(.left) {
-                x = initialResizeFrame.maxX - Self.minimumWidth
+                x = initialResizeFrame.maxX - minW
             }
-            w = Self.minimumWidth
+            w = minW
         }
-        if h < Self.minimumHeight {
+        if h < minH {
             if activeResizeEdge.contains(.bottom) {
-                y = initialResizeFrame.maxY - Self.minimumHeight
+                y = initialResizeFrame.maxY - minH
             }
-            h = Self.minimumHeight
+            h = minH
         }
 
         return NSRect(x: x, y: y, width: w, height: h)
@@ -288,8 +302,9 @@ final class StickyContentView: NSView {
     // MARK: - Drawing
 
     override func draw(_ dirtyRect: NSRect) {
+        let visualRect = bounds.insetBy(dx: Self.resizeMargin, dy: Self.resizeMargin)
         Self.backgroundColor.setFill()
-        NSBezierPath(roundedRect: bounds, xRadius: Self.cornerRadius, yRadius: Self.cornerRadius).fill()
+        NSBezierPath(roundedRect: visualRect, xRadius: Self.cornerRadius, yRadius: Self.cornerRadius).fill()
         super.draw(dirtyRect)
     }
 }

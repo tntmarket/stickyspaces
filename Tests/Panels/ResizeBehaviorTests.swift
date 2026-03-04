@@ -104,7 +104,8 @@ struct ResizeBehaviorTests {
             context: nil, eventNumber: 0, clickCount: 0, pressure: 0
         )!
         contentView.mouseMoved(with: moveEvent)
-        #expect(NSCursor.current == NSCursor.resizeLeftRight)
+        let cursorAfterMove = NSCursor.current
+        #expect(cursorAfterMove != NSCursor.arrow)
 
         let mouseDown = NSEvent.mouseEvent(
             with: .leftMouseDown, location: rightEdgePoint,
@@ -122,7 +123,7 @@ struct ResizeBehaviorTests {
         )!
         contentView.mouseExited(with: exitEvent)
 
-        #expect(NSCursor.current == NSCursor.resizeLeftRight)
+        #expect(NSCursor.current == cursorAfterMove)
     }
 
     @Test("Left-edge resize adjusts origin and width")

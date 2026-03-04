@@ -68,11 +68,15 @@ private final class AppKitPanelRegistry: StickyPanelDelegate {
     // MARK: - StickyPanelDelegate
 
     func stickyPanel(_ stickyID: UUID, didMoveToPosition position: CGPoint) {
-        onPositionChanged?(stickyID, position)
+        let m = StickyContentView.resizeMargin
+        onPositionChanged?(stickyID, CGPoint(x: position.x + m, y: position.y + m))
     }
 
     func stickyPanel(_ stickyID: UUID, didResizeTo size: CGSize, position: CGPoint) {
-        onSizeChanged?(stickyID, size, position)
+        let m = StickyContentView.resizeMargin
+        let visualSize = CGSize(width: size.width - 2 * m, height: size.height - 2 * m)
+        let visualOrigin = CGPoint(x: position.x + m, y: position.y + m)
+        onSizeChanged?(stickyID, visualSize, visualOrigin)
     }
 
     func stickyPanel(_ stickyID: UUID, didChangeText text: String) {
@@ -86,11 +90,12 @@ private final class AppKitPanelRegistry: StickyPanelDelegate {
     // MARK: - Private
 
     private func apply(sticky: StickyNote, to panel: StickyPanel) {
+        let m = StickyContentView.resizeMargin
         let rect = NSRect(
-            x: sticky.position.x,
-            y: sticky.position.y,
-            width: sticky.size.width,
-            height: sticky.size.height
+            x: sticky.position.x - m,
+            y: sticky.position.y - m,
+            width: sticky.size.width + 2 * m,
+            height: sticky.size.height + 2 * m
         )
         panel.setFrame(rect, display: true)
         let textView = panel.stickyContentView.textView

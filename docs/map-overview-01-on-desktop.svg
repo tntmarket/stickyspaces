@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="980" viewBox="0 0 1600 980" role="img" aria-labelledby="title desc">
+  <title id="title">Map Overview Sequence Frame 1: On Desktop Before Zoom-Out</title>
+  <desc id="desc">Desktop view just before zoom-out trigger. This frame highlights ZO-FR-1 only.</desc>
+  <defs>
+    <style>
+      .bg { fill: #07111f; }
+      .menu { fill: #0b172a; }
+      .desktop { fill: #12233a; stroke: #1f3b5a; stroke-width: 2; }
+      .window-a { fill: #1f2f4a; stroke: #3b5f89; stroke-width: 2; }
+      .window-b { fill: #2b3f61; stroke: #5577a6; stroke-width: 2; }
+      .window-c { fill: #243752; stroke: #4c6f96; stroke-width: 2; }
+      .title { font: 700 28px -apple-system, BlinkMacSystemFont, Segoe UI, Helvetica, Arial, sans-serif; fill: #f3f4f6; }
+      .subtitle { font: 500 17px -apple-system, BlinkMacSystemFont, Segoe UI, Helvetica, Arial, sans-serif; fill: #d1d5db; }
+      .label { font: 600 14px -apple-system, BlinkMacSystemFont, Segoe UI, Helvetica, Arial, sans-serif; fill: #dbe7ff; }
+      .menu-text { font: 600 14px -apple-system, BlinkMacSystemFont, Segoe UI, Helvetica, Arial, sans-serif; fill: #d1d5db; }
+      .sticky { fill: #f5e8b4; stroke: #cabd8c; stroke-width: 2; }
+      .sticky-text { font: 600 13px -apple-system, BlinkMacSystemFont, Segoe UI, Helvetica, Arial, sans-serif; fill: #3b2f09; }
+      .callout { fill: #0f172a; stroke: #475569; stroke-width: 1.5; }
+      .callout-title { font: 700 16px -apple-system, BlinkMacSystemFont, Segoe UI, Helvetica, Arial, sans-serif; fill: #f8fafc; }
+      .callout-body { font: 500 14px -apple-system, BlinkMacSystemFont, Segoe UI, Helvetica, Arial, sans-serif; fill: #d1d5db; }
+      .tag { fill: #1d4ed8; }
+      .tag-text { font: 700 12px -apple-system, BlinkMacSystemFont, Segoe UI, Helvetica, Arial, sans-serif; fill: #eff6ff; }
+    </style>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="1600" height="980" />
+
+  <text class="title" x="70" y="64">Frame 1 - On Desktop Before Zoom-Out</text>
+  <text class="subtitle" x="70" y="92">ZO-FR-1 only: trigger zoom-out from this desktop context</text>
+
+  <rect class="menu" x="70" y="120" width="1160" height="40" rx="9" />
+  <text class="menu-text" x="92" y="145">StickySpaces</text>
+  <text class="menu-text" x="1080" y="145">Mon Mar 2 6:53 AM</text>
+
+  <rect class="desktop" x="70" y="170" width="1160" height="730" rx="14" />
+
+  <rect class="window-a" x="120" y="230" width="500" height="340" rx="10" />
+  <rect class="menu" x="120" y="230" width="500" height="30" rx="10" />
+  <text class="label" x="140" y="250">Workspace 2 - Editor</text>
+  <rect class="window-c" x="150" y="285" width="180" height="250" rx="6" />
+  <rect class="window-b" x="345" y="285" width="245" height="250" rx="6" />
+
+  <rect class="window-b" x="660" y="270" width="500" height="290" rx="10" />
+  <rect class="menu" x="660" y="270" width="500" height="30" rx="10" />
+  <text class="label" x="680" y="290">Browser / Docs</text>
+  <rect class="window-c" x="690" y="320" width="440" height="210" rx="6" />
+
+  <rect class="window-c" x="220" y="620" width="540" height="240" rx="10" />
+  <rect class="menu" x="220" y="620" width="540" height="30" rx="10" />
+  <text class="label" x="240" y="640">Terminal + Logs</text>
+  <rect class="window-a" x="250" y="670" width="480" height="160" rx="6" />
+
+  <rect class="sticky" x="880" y="610" width="250" height="170" rx="8" />
+  <text class="sticky-text" x="900" y="645">Ship overview polish</text>
+  <text class="sticky-text" x="900" y="670">- verify timing</text>
+  <text class="sticky-text" x="900" y="695">- publish demo</text>
+
+  <rect class="callout" x="1260" y="180" width="290" height="160" rx="10" />
+  <rect class="tag" x="1274" y="194" width="72" height="24" rx="6" />
+  <text class="tag-text" x="1288" y="210">ZO-FR-1</text>
+  <text class="callout-title" x="1274" y="240">Zoom-out entry trigger</text>
+  <text class="callout-body" x="1274" y="264">User activates hotkey/command</text>
+  <text class="callout-body" x="1274" y="286">from this desktop workspace.</text>
+</svg>

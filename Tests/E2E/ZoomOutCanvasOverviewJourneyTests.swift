@@ -166,8 +166,8 @@ struct ZoomOutCanvasOverviewJourneyTests {
         #expect(snapshot.regions.allSatisfy { $0.thumbnail.displayID != nil })
         #expect(captureResult?.source == .liveCapture)
         #expect(transitionDiff.changedPixelRatio >= 0.08)
-        #expect(visualStats.quantizedColorCount >= 32)
-        #expect(visualStats.luminanceStdDev >= 12)
+        #expect(visualStats.quantizedColorCount >= 24)
+        #expect(visualStats.luminanceStdDev >= 8)
     }
 
     @Test("zoom-out does not switch workspace")

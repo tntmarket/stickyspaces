@@ -140,7 +140,27 @@ public actor StickyManager {
     public func zoomOutSnapshot(
         viewport: CanvasViewportState = .defaultOverview
     ) async throws -> CanvasSnapshot {
-        let topology = try await yabai.topologySnapshot()
+        let capabilities = await yabai.capabilities()
+        guard capabilities.canListSpaces else {
+            throw StickyManagerError.unsupportedMode(
+                await zoomOutUnsupportedMode(
+                    reason: "list-spaces capability unavailable",
+                    fallbackWarning: "yabai list-spaces capability unavailable"
+                )
+            )
+        }
+
+        let topology: WorkspaceTopologySnapshot
+        do {
+            topology = try await yabai.topologySnapshot()
+        } catch {
+            throw StickyManagerError.unsupportedMode(
+                await zoomOutUnsupportedMode(
+                    reason: "cannot list spaces",
+                    fallbackWarning: "cannot list spaces"
+                )
+            )
+        }
         let layout = await resolvedCanvasLayout(for: topology)
         let stickies = await store.list(space: nil)
         let activeWorkspaceID = try? await yabai.currentSpaceID()
@@ -151,6 +171,19 @@ public actor StickyManager {
             stickies: stickies,
             activeWorkspaceID: activeWorkspaceID,
             viewport: viewport
+        )
+    }
+
+    private func zoomOutUnsupportedMode(
+        reason: String,
+        fallbackWarning: String
+    ) async -> UnsupportedModeResponse {
+        let runtime = await runtimeProjection()
+        return UnsupportedModeResponse(
+            command: "zoom-out",
+            mode: runtime.mode,
+            reason: reason,
+            warnings: runtime.warnings.isEmpty ? [fallbackWarning] : runtime.warnings
         )
     }
 

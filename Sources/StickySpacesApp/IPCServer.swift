@@ -98,6 +98,8 @@ public actor IPCServer {
                     return .error("cannot zoom-out")
                 }
                 return .canvasSnapshot(snapshot)
+            } catch StickyManagerError.unsupportedMode(let details) {
+                return .unsupportedMode(details)
             } catch {
                 return .error("cannot zoom-out")
             }

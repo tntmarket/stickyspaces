@@ -16,6 +16,13 @@ enum VideoBackedE2EStepResult: Sendable {
     case snapshot(CanvasSnapshot)
 }
 
+struct ZoomOutAnimationProbeMetrics: Sendable, Equatable {
+    let durationMilliseconds: Int
+    let frameCount: Int
+    let heroSampleCount: Int
+    let maxHeroAnchorStepPoints: Double?
+}
+
 struct VideoBackedScenarioSession: Sendable {
     let scenarioName: String
     let videoURL: URL
@@ -74,6 +81,8 @@ actor VideoBackedE2EHarness {
     private let automation: StickySpacesAutomationAPI
     private let debug: StickySpacesAutomationDebugAPI
     private let presenter: AppKitZoomOutOverviewPresenter
+    private let panelSync: any PanelSyncing
+    private let yabai: FakeYabaiQuerying
     private var activeBackend: CaptureBackend?
 
     init(outputURL: URL, backendMode: CaptureBackendMode) async throws {
@@ -82,6 +91,8 @@ actor VideoBackedE2EHarness {
 
         let panelSync = AppKitPanelSync()
         let yabai = FakeYabaiQuerying(currentSpace: workspace1)
+        self.panelSync = panelSync
+        self.yabai = yabai
         await yabai.setTopologySnapshot(
             WorkspaceTopologySnapshot(
                 spaces: [
@@ -173,6 +184,19 @@ actor VideoBackedE2EHarness {
         }
     }
 
+    func animatePreparedZoomOutOverlayCollectingMetrics() async throws -> ZoomOutAnimationProbeMetrics {
+        try await animatePreparedZoomOutOverlay()
+        guard let metrics = await presenter.latestAnimationMetrics() else {
+            throw HarnessError.missingAnimationMetrics
+        }
+        return ZoomOutAnimationProbeMetrics(
+            durationMilliseconds: metrics.durationMilliseconds,
+            frameCount: metrics.frameCount,
+            heroSampleCount: metrics.heroSampleCount,
+            maxHeroAnchorStepPoints: metrics.maxHeroAnchorStepPoints
+        )
+    }
+
     func stopRecording() async throws -> CaptureFinishResult {
         guard let activeBackend else {
             throw CaptureError.captureFailed(reason: "recorder was not started")
@@ -214,6 +238,38 @@ actor VideoBackedE2EHarness {
         return screenshotURL
     }
 
+    func currentWorkspaceID() async throws -> WorkspaceID {
+        try await yabai.currentSpaceID()
+    }
+
+    func listStickies(space: WorkspaceID?) async throws -> [StickyNote] {
+        let response = try await automation.perform(.listStickies(space: space))
+        guard case .stickyList(let notes) = response else {
+            throw HarnessError.unexpectedResponse("listStickies")
+        }
+        return notes
+    }
+
+    func canvasLayout() async throws -> CanvasLayout {
+        let response = try await automation.perform(.canvasLayout)
+        guard case .canvasLayout(let layout) = response else {
+            throw HarnessError.unexpectedResponse("canvasLayout")
+        }
+        return layout
+    }
+
+    func showOnlyWorkspace(_ workspaceID: WorkspaceID) async {
+        await debug.showOnlyWorkspace(workspaceID)
+    }
+
+    func visibleStickyIDs(on workspaceID: WorkspaceID) async -> Set<UUID> {
+        await panelSync.visibleStickyIDs(on: workspaceID)
+    }
+
+    func hideZoomOutOverlay() async {
+        await presenter.hide()
+    }
+
     func cleanup() async throws {
         if let activeBackend {
             try? await activeBackend.stop(reason: .teardown)
@@ -245,4 +301,5 @@ actor VideoBackedE2EHarness {
 private enum HarnessError: Error {
     case unexpectedResponse(String)
     case screenshotCaptureFailed(String)
+    case missingAnimationMetrics
 }

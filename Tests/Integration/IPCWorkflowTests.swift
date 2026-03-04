@@ -112,6 +112,62 @@ struct IPCWorkflowTests {
         #expect(preview.displayHeader == "Ship overview polish")
     }
 
+    @Test("zoom-out returns canvas snapshot over IPC")
+    func zoomOutReturnsCanvasSnapshotOverIPC() async throws {
+        let workspace1 = WorkspaceID(rawValue: 3)
+        let workspace2 = WorkspaceID(rawValue: 8)
+        let yabai = FakeYabaiQuerying(currentSpace: workspace1)
+        await yabai.setTopologySnapshot(
+            WorkspaceTopologySnapshot(
+                spaces: [
+                    WorkspaceDescriptor(workspaceID: workspace1, index: 1, displayID: 1),
+                    WorkspaceDescriptor(workspaceID: workspace2, index: 2, displayID: 1)
+                ],
+                primaryDisplayID: 1
+            )
+        )
+        let manager = StickyManager(
+            store: StickyStore(),
+            yabai: yabai,
+            panelSync: InMemoryPanelSync()
+        )
+        let server = IPCServer(manager: manager)
+
+        _ = try created(from: try await send(request: .new(text: "Overview region"), to: server))
+        let snapshot = try canvasSnapshot(from: try await send(request: .zoomOut, to: server))
+
+        #expect(snapshot.activeWorkspaceID == workspace1)
+        #expect(snapshot.regions.count == 2)
+        #expect(snapshot.regions.contains { $0.workspaceID == workspace1 && $0.stickyCount == 1 })
+        #expect(snapshot.regions.contains { $0.workspaceID == workspace2 && $0.stickyCount == 0 })
+    }
+
+    @Test("zoom-out reports structured mode warnings")
+    func zoomOutReportsStructuredModeWarnings() async throws {
+        let workspace = WorkspaceID(rawValue: 1)
+        let yabai = FakeYabaiQuerying(currentSpace: workspace)
+        await yabai.setCapabilities(
+            CapabilityState(
+                canReadCurrentSpace: true,
+                canListSpaces: false,
+                canFocusSpace: true,
+                canDiffTopology: true
+            )
+        )
+        let manager = StickyManager(
+            store: StickyStore(),
+            yabai: yabai,
+            panelSync: InMemoryPanelSync()
+        )
+        let server = IPCServer(manager: manager)
+
+        let details = try unsupportedMode(from: try await send(request: .zoomOut, to: server))
+        #expect(details.command == "zoom-out")
+        #expect(details.mode == .degraded)
+        #expect(details.reason.contains("list-spaces"))
+        #expect(details.warnings.contains { $0.contains("list-spaces") })
+    }
+
     @Test("clicking a sticky in canvas navigation switches to that sticky workspace")
     func navigateFromCanvasClickSwitchesWorkspace() async throws {
         let workspace1 = WorkspaceID(rawValue: 1)
@@ -189,6 +245,13 @@ struct IPCWorkflowTests {
             throw UnexpectedIPCResponseError(expected: ".status", actual: response)
         }
         return status
+    }
+
+    private func unsupportedMode(from response: IPCResponse) throws -> UnsupportedModeResponse {
+        guard case .unsupportedMode(let details) = response else {
+            throw UnexpectedIPCResponseError(expected: ".unsupportedMode", actual: response)
+        }
+        return details
     }
 
     private struct UnexpectedIPCResponseError: Error, CustomStringConvertible {

@@ -57,6 +57,7 @@ public actor StickySpacesAutomationAPI: StickySpacesAutomating {
     private let panelSync: (any PanelSyncing)?
     private let zoomOutPresenter: any ZoomOutOverviewPresenting
     private let lifecycleSink: StickySpacesAutomationLifecycleSink?
+    private var preparedPanelHideTargets: [PreparedPanelHideTarget] = []
 
     public init(
         manager: StickyManager,
@@ -148,22 +149,26 @@ public actor StickySpacesAutomationAPI: StickySpacesAutomating {
         let snapshot = try await manager.zoomOutSnapshot()
         let notes = await manager.list(space: nil)
         let heroSticky = pickHeroSticky(notes: notes, activeWorkspaceID: snapshot.activeWorkspaceID)
-        await hideVisiblePanels(notes: notes)
+        preparedPanelHideTargets = notes.map { PreparedPanelHideTarget(stickyID: $0.id, workspaceID: $0.workspaceID) }
         await zoomOutPresenter.preparePresentation(snapshot: snapshot, heroSticky: heroSticky)
         return .canvasSnapshot(snapshot)
     }
 
     private func animatePreparedZoomOutOverview() async -> StickySpacesAutomationResponse {
+        await hidePreparedPanels()
         await zoomOutPresenter.animatePreparedPresentation()
         return .ok
     }
 
-    private func hideVisiblePanels(notes: [StickyNote]) async {
+    private func hidePreparedPanels() async {
         guard let panelSync else {
+            preparedPanelHideTargets.removeAll(keepingCapacity: false)
             return
         }
-        for note in notes {
-            await panelSync.hide(stickyID: note.id, workspaceID: note.workspaceID)
+        let targets = preparedPanelHideTargets
+        preparedPanelHideTargets.removeAll(keepingCapacity: false)
+        for target in targets {
+            await panelSync.hide(stickyID: target.stickyID, workspaceID: target.workspaceID)
         }
     }
 
@@ -176,6 +181,11 @@ public actor StickySpacesAutomationAPI: StickySpacesAutomating {
             .sorted { $0.createdAt < $1.createdAt }
         return activeNotes.last ?? notes.sorted { $0.createdAt < $1.createdAt }.last
     }
+}
+
+private struct PreparedPanelHideTarget: Sendable {
+    let stickyID: UUID
+    let workspaceID: WorkspaceID
 }
 
 public actor StickySpacesAutomationDebugAPI {

@@ -107,6 +107,73 @@ struct CanvasOverviewBehaviorTests {
         }
     }
 
+    @Test("Zoom-out snapshot includes empty workspace regions")
+    func zoomOutSnapshotIncludesEmptyWorkspaceRegions() async throws {
+        let workspace1 = WorkspaceID(rawValue: 1)
+        let workspace2 = WorkspaceID(rawValue: 2)
+        let workspace3 = WorkspaceID(rawValue: 3)
+        let yabai = FakeYabaiQuerying(currentSpace: workspace1)
+        await yabai.setTopologySnapshot(
+            WorkspaceTopologySnapshot(
+                spaces: [
+                    WorkspaceDescriptor(workspaceID: workspace1, index: 1, displayID: 1),
+                    WorkspaceDescriptor(workspaceID: workspace2, index: 2, displayID: 1),
+                    WorkspaceDescriptor(workspaceID: workspace3, index: 3, displayID: 1)
+                ],
+                primaryDisplayID: 1
+            )
+        )
+        let manager = StickyManager(
+            store: StickyStore(),
+            yabai: yabai,
+            panelSync: InMemoryPanelSync()
+        )
+
+        _ = try await manager.createSticky(text: "Workspace 1 sticky")
+        await yabai.setCurrentBinding(.stable(workspaceID: workspace2, displayID: 1, isPrimaryDisplay: true))
+        _ = try await manager.createSticky(text: "Workspace 2 sticky")
+
+        let snapshot = try await manager.zoomOutSnapshot()
+        #expect(snapshot.regions.count == 3)
+        let emptyRegion = try #require(snapshot.regions.first(where: { $0.workspaceID == workspace3 }))
+        #expect(emptyRegion.stickyCount == 0)
+        #expect(emptyRegion.stickyPreviews.isEmpty)
+    }
+
+    @Test("Zoom-out returns unsupported mode on capability loss")
+    func zoomOutReturnsUnsupportedModeOnCapabilityLoss() async throws {
+        let workspace = WorkspaceID(rawValue: 1)
+        let yabai = FakeYabaiQuerying(currentSpace: workspace)
+        await yabai.setCapabilities(
+            CapabilityState(
+                canReadCurrentSpace: true,
+                canListSpaces: false,
+                canFocusSpace: true,
+                canDiffTopology: true
+            )
+        )
+        let manager = StickyManager(
+            store: StickyStore(),
+            yabai: yabai,
+            panelSync: InMemoryPanelSync()
+        )
+
+        do {
+            _ = try await manager.zoomOutSnapshot()
+            Issue.record("expected zoom-out unsupported mode response when list-spaces is unavailable")
+        } catch let error as StickyManagerError {
+            switch error {
+            case .unsupportedMode(let details):
+                #expect(details.command == "zoom-out")
+                #expect(details.mode == .degraded)
+                #expect(details.reason.contains("list-spaces"))
+                #expect(details.warnings.contains { $0.contains("list-spaces") })
+            default:
+                Issue.record("unexpected error: \(error)")
+            }
+        }
+    }
+
     @Test("Active workspace highlight follows current workspace")
     func activeWorkspaceHighlightFollowsCurrentWorkspace() async throws {
         let workspace1 = WorkspaceID(rawValue: 1)

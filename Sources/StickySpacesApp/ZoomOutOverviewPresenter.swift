@@ -29,9 +29,29 @@ public struct NoopZoomOutOverviewPresenter: ZoomOutOverviewPresenting, Sendable 
     public func animatePreparedPresentation() async {}
 }
 
+public struct ZoomOutAnimationMetrics: Sendable, Equatable {
+    public let durationMilliseconds: Int
+    public let frameCount: Int
+    public let heroSampleCount: Int
+    public let maxHeroAnchorStepPoints: Double?
+
+    public init(
+        durationMilliseconds: Int,
+        frameCount: Int,
+        heroSampleCount: Int,
+        maxHeroAnchorStepPoints: Double?
+    ) {
+        self.durationMilliseconds = durationMilliseconds
+        self.frameCount = frameCount
+        self.heroSampleCount = heroSampleCount
+        self.maxHeroAnchorStepPoints = maxHeroAnchorStepPoints
+    }
+}
+
 #if canImport(AppKit)
 public actor AppKitZoomOutOverviewPresenter: ZoomOutOverviewPresenting {
     @MainActor private static var controller: ZoomOutOverviewWindowController?
+    private var lastAnimationMetrics: ZoomOutAnimationMetrics?
 
     public init() {}
 
@@ -47,7 +67,11 @@ public actor AppKitZoomOutOverviewPresenter: ZoomOutOverviewPresenting {
 
     public func animatePreparedPresentation() async {
         let controller = await resolveController()
-        await controller.animateZoomOut()
+        lastAnimationMetrics = await controller.animateZoomOut()
+    }
+
+    public func latestAnimationMetrics() async -> ZoomOutAnimationMetrics? {
+        lastAnimationMetrics
     }
 
     public func hide() async {
@@ -71,6 +95,7 @@ public actor AppKitZoomOutOverviewPresenter: ZoomOutOverviewPresenting {
 private final class ZoomOutOverviewWindowController {
     private let panel: NSPanel
     private let view: ZoomOutOverviewView
+    private var preparedHeroSticky: StickyNote?
 
     init() {
         let initialFrame = NSScreen.main?.frame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
@@ -98,6 +123,8 @@ private final class ZoomOutOverviewWindowController {
         panel.setFrame(screenFrame, display: true)
         view.frame = panel.contentView?.bounds ?? screenFrame
         view.snapshot = snapshot
+        view.backgroundSnapshotImage = captureMainDisplayImage()
+        preparedHeroSticky = heroSticky
 
         let startScale: CGFloat = 1.15
         let startPan = heroAnchoredPan(startScale: startScale, heroSticky: heroSticky, canvasBounds: view.bounds)
@@ -114,7 +141,7 @@ private final class ZoomOutOverviewWindowController {
         NSApplication.shared.activate(ignoringOtherApps: true)
     }
 
-    func animateZoomOut() async {
+    func animateZoomOut() async -> ZoomOutAnimationMetrics {
         let startScale = view.displayScale
         let endScale = max(0.2, CGFloat(view.snapshot.viewport.zoomScale))
         let startPan = view.panOffset
@@ -122,9 +149,17 @@ private final class ZoomOutOverviewWindowController {
             x: view.snapshot.viewport.panOffset.x,
             y: view.snapshot.viewport.panOffset.y
         )
+        let heroAnchorCanvasPoint = resolveHeroAnchorCanvasPoint(
+            heroSticky: preparedHeroSticky,
+            snapshot: view.snapshot
+        )
+        let startedAt = Date()
+        var previousHeroPoint: CGPoint?
+        var maxHeroAnchorStep: CGFloat = 0
+        var heroSampleCount = 0
+        let frameCount = 24
+        let frameIntervalMilliseconds = 16
 
-        try? await Task.sleep(for: .milliseconds(240))
-        let frameCount = 28
         for frame in 0...frameCount {
             let t = CGFloat(frame) / CGFloat(frameCount)
             let eased = t * t * (3 - (2 * t))
@@ -135,8 +170,33 @@ private final class ZoomOutOverviewWindowController {
             )
             view.transitionProgress = eased
             view.needsDisplay = true
-            try? await Task.sleep(for: .milliseconds(18))
+
+            if let heroAnchorCanvasPoint,
+               let heroPoint = view.screenPoint(forCanvasPoint: heroAnchorCanvasPoint) {
+                heroSampleCount += 1
+                if let previousHeroPoint {
+                    maxHeroAnchorStep = max(
+                        maxHeroAnchorStep,
+                        hypot(
+                            heroPoint.x - previousHeroPoint.x,
+                            heroPoint.y - previousHeroPoint.y
+                        )
+                    )
+                }
+                previousHeroPoint = heroPoint
+            }
+            if frame < frameCount {
+                try? await Task.sleep(for: .milliseconds(frameIntervalMilliseconds))
+            }
         }
+
+        let durationMilliseconds = Int((Date().timeIntervalSince(startedAt) * 1000).rounded())
+        return ZoomOutAnimationMetrics(
+            durationMilliseconds: durationMilliseconds,
+            frameCount: frameCount + 1,
+            heroSampleCount: heroSampleCount,
+            maxHeroAnchorStepPoints: heroSampleCount > 1 ? Double(maxHeroAnchorStep) : nil
+        )
     }
 
     func hide() {
@@ -161,6 +221,32 @@ private final class ZoomOutOverviewWindowController {
     private func interpolate(from: CGFloat, to: CGFloat, progress: CGFloat) -> CGFloat {
         from + ((to - from) * progress)
     }
+
+    private func resolveHeroAnchorCanvasPoint(
+        heroSticky: StickyNote?,
+        snapshot: CanvasSnapshot
+    ) -> CGPoint? {
+        guard let heroSticky,
+              let heroRegion = snapshot.regions.first(where: { $0.workspaceID == heroSticky.workspaceID }) else {
+            return nil
+        }
+        if let preview = heroRegion.stickyPreviews.first(where: { $0.id == heroSticky.id }) {
+            let previewCenterX = CGFloat(preview.x + (preview.width / 2))
+            let previewCenterY = CGFloat(preview.y + (preview.height / 2))
+            return CGPoint(
+                x: heroRegion.frame.minX + (previewCenterX * heroRegion.frame.width),
+                y: heroRegion.frame.minY + (previewCenterY * heroRegion.frame.height)
+            )
+        }
+        return CGPoint(
+            x: heroRegion.frame.minX + heroSticky.position.x + (heroSticky.size.width / 2),
+            y: heroRegion.frame.minY + heroSticky.position.y + (heroSticky.size.height / 2)
+        )
+    }
+
+    private func captureMainDisplayImage() -> CGImage? {
+        CGDisplayCreateImage(CGMainDisplayID())
+    }
 }
 
 @MainActor
@@ -174,18 +260,40 @@ private final class ZoomOutOverviewView: NSView {
     var displayScale: CGFloat = 1
     var panOffset: CGPoint = .zero
     var transitionProgress: CGFloat = 1
+    var backgroundSnapshotImage: CGImage?
 
     override func draw(_ dirtyRect: NSRect) {
+        if let context = NSGraphicsContext.current?.cgContext,
+           let backgroundSnapshotImage {
+            context.saveGState()
+            context.interpolationQuality = .high
+            context.draw(backgroundSnapshotImage, in: bounds)
+            context.restoreGState()
+        } else {
+            NSColor(calibratedRed: 0.05, green: 0.06, blue: 0.08, alpha: 0.98).setFill()
+            dirtyRect.fill()
+        }
+
+        let overlayAlpha = min(max(transitionProgress, 0), 1)
+        guard overlayAlpha > 0 else {
+            return
+        }
+        guard let context = NSGraphicsContext.current?.cgContext else {
+            return
+        }
+        context.saveGState()
+        context.setAlpha(overlayAlpha)
+        drawOverlay(in: dirtyRect)
+        context.restoreGState()
+    }
+
+    private func drawOverlay(in dirtyRect: NSRect) {
         NSColor(calibratedRed: 0.05, green: 0.06, blue: 0.08, alpha: 0.98).setFill()
         dirtyRect.fill()
 
-        guard let first = snapshot.regions.first else {
+        guard let contentBounds = contentBounds() else {
             drawHeader()
             return
-        }
-
-        let contentBounds = snapshot.regions.dropFirst().reduce(first.frame) { partial, region in
-            partial.union(region.frame)
         }
         let base = centeredBase(contentBounds: contentBounds, scale: displayScale)
 
@@ -200,6 +308,19 @@ private final class ZoomOutOverviewView: NSView {
         }
 
         drawHeader()
+    }
+
+    func screenPoint(forCanvasPoint canvasPoint: CGPoint) -> CGPoint? {
+        guard let contentBounds = contentBounds() else {
+            return nil
+        }
+        let base = centeredBase(contentBounds: contentBounds, scale: displayScale)
+        return transformedPoint(
+            canvasPoint,
+            base: base,
+            scale: displayScale,
+            panOffset: panOffset
+        )
     }
 
     private func drawHeader() {
@@ -258,12 +379,28 @@ private final class ZoomOutOverviewView: NSView {
         return CGPoint(x: x, y: y)
     }
 
+    private func contentBounds() -> CGRect? {
+        guard let first = snapshot.regions.first else {
+            return nil
+        }
+        return snapshot.regions.dropFirst().reduce(first.frame) { partial, region in
+            partial.union(region.frame)
+        }
+    }
+
     private func transformed(_ rect: CGRect, base: CGPoint, scale: CGFloat, panOffset: CGPoint) -> CGRect {
         CGRect(
             x: (rect.origin.x * scale) + base.x + panOffset.x,
             y: (rect.origin.y * scale) + base.y + panOffset.y,
             width: rect.width * scale,
             height: rect.height * scale
+        )
+    }
+
+    private func transformedPoint(_ point: CGPoint, base: CGPoint, scale: CGFloat, panOffset: CGPoint) -> CGPoint {
+        CGPoint(
+            x: (point.x * scale) + base.x + panOffset.x,
+            y: (point.y * scale) + base.y + panOffset.y
         )
     }
 }
@@ -278,5 +415,7 @@ public actor AppKitZoomOutOverviewPresenter: ZoomOutOverviewPresenting {
     public func animatePreparedPresentation() async {}
 
     public func hide() async {}
+
+    public func latestAnimationMetrics() async -> ZoomOutAnimationMetrics? { nil }
 }
 #endif

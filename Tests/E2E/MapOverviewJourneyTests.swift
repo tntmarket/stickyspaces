@@ -4,7 +4,7 @@ import Testing
 @testable import VideoCaptureCore
 
 @Suite("Map Overview — zoom out to see the big picture")
-struct ZoomOutCanvasOverviewJourneyTests {
+struct MapOverviewJourneyTests {
     @Test("opening the big picture across workspaces records the full sequence as video")
     func openingBigPictureRecordsFullSequenceAsVideo() async throws {
         guard VideoBackedScenarioSession.isEnabled else { return }

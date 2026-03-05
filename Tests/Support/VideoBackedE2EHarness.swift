@@ -37,8 +37,9 @@ struct VideoBackedScenarioSession: Sendable {
         filePath: String = #filePath
     ) async throws -> VideoBackedScenarioSession {
         let root = packageRoot(from: filePath)
+        let timestamp = ISO8601DateFormatter.artifactTimestamp.string(from: Date())
         let outputRoot = root
-            .appendingPathComponent("artifacts/ui-demos/integration-\(UUID().uuidString)")
+            .appendingPathComponent("artifacts/ui-demos/\(timestamp)")
         let videoURL = outputRoot
             .appendingPathComponent(scenarioName)
             .appendingPathComponent("\(scenarioName).mov")
@@ -306,4 +307,13 @@ private enum HarnessError: Error {
     case unexpectedResponse(String)
     case screenshotCaptureFailed(String)
     case missingAnimationMetrics
+}
+
+private extension ISO8601DateFormatter {
+    static let artifactTimestamp: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withFullDate, .withTime]
+        f.timeZone = .current
+        return f
+    }()
 }

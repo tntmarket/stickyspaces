@@ -8,6 +8,8 @@
 
 ---
 
+> **Note:** Canonical requirements have moved to [`openspec/specs/cli-interface/spec.md`](../openspec/specs/cli-interface/spec.md). This document is retained as architectural reference for design decisions, rationale, and implementation guidance.
+
 ## Overview
 
 The stickyspaces CLI is the primary control surface for all user interactions — triggered by Keyboard Maestro hotkeys, terminal commands, and E2E tests. Today the CLI creates a fresh in-memory `DemoApp` with fakes on every invocation: it prints text output like `created id: <UUID> workspace: 1` but no windows appear and state is lost immediately.

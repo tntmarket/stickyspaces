@@ -7,6 +7,8 @@
 
 ---
 
+> **Note:** Canonical requirements have moved to [`openspec/specs/daemon-event-loop/spec.md`](../openspec/specs/daemon-event-loop/spec.md). This document is retained as architectural reference for design decisions, rationale, and implementation guidance.
+
 ## Overview
 
 The daemon must simultaneously process AppKit events (so sticky panels respond to mouse/keyboard/drag) and serve `@MainActor` continuations from IPC handlers (so CLI commands reach `AppKitPanelSync`). Today these two responsibilities deadlock: `NSApplication.run()` is called inside `MainActor.run { }` from an `async main()`, which permanently occupies the main actor executor and starves IPC-driven `@MainActor` hops.

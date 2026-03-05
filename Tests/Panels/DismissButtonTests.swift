@@ -5,7 +5,7 @@ import Foundation
 #if canImport(AppKit)
 import AppKit
 
-@Suite("Dismiss button hover-reveal behavior")
+@Suite("Dismiss button hover-reveal behavior (FR-6, FR-DI-5, C-DI-2)")
 struct DismissButtonTests {
 
     @Test("Dismiss button is hidden by default")

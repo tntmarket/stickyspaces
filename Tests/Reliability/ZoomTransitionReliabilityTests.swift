@@ -3,7 +3,7 @@ import Testing
 @testable import StickySpacesApp
 @testable import StickySpacesShared
 
-@Suite("Zoom transition reliability and fallback")
+@Suite("Zoom transition reliability and fallback (NFR-2, ZO-NFR-1)")
 struct ZoomTransitionReliabilityTests {
     @Test("zoom transition p95 duration stays within 300-500 ms")
     func zoomTransitionDurationP95StaysWithinTargetRange() async throws {

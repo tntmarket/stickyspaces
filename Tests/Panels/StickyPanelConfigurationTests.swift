@@ -6,7 +6,7 @@ import StickySpacesShared
 #if canImport(AppKit)
 import AppKit
 
-@Suite("Chromeless sticky panel")
+@Suite("Chromeless sticky panel (C-1, D-6)")
 struct StickyPanelConfigurationTests {
 
     @Test("Panel has borderless style mask without title bar or traffic lights")

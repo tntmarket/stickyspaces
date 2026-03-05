@@ -89,3 +89,45 @@ Only assert details relevant to the test name.
 ### Redundant Assertions Across Tests
 
 Do not assert what has already been asserted by another test. Only assert properties that differentiate the test.
+
+## Requirement Traceability
+
+### The Convention
+
+Tests reference requirement IDs from `openspec/specs/` in their `@Suite` or `@Test` names using parenthesized IDs:
+
+```swift
+@Suite("Panel behavior contracts (C-1)")
+@Test("Sticky panel floats above application windows (C-1, D-6)")
+```
+
+Multiple IDs are comma-separated when a test verifies several requirements.
+
+### Finding Tests for a Requirement
+
+```bash
+rg "FR-7" Tests/
+```
+
+### Finding the Requirement for a Test
+
+Read the ID from the `@Suite` or `@Test` name, then:
+
+```bash
+rg "FR-7" openspec/specs/
+```
+
+### Traceability Chain
+
+- **Business motivation**: `docs/sidequest-trilemma-problem-brief.md`
+- **Product intent**: `docs/stickyspaces-prd.md`
+- **Requirements (source of truth)**: `openspec/specs/<capability>/spec.md`
+- **Verification**: `Tests/` (references requirement IDs in test names)
+- **Architecture reference**: `docs/*-tech-spec.md`
+
+### Rules
+
+- Every `@Suite` SHOULD include the primary requirement ID(s) it verifies
+- Every `@Test` MAY include requirement IDs when the test name doesn't already make the connection obvious from the suite name
+- Requirement IDs in test names are for traceability, not documentation — keep test names readable first
+- When adding a new test for an existing requirement, include the ID. When the requirement is obvious from context, the ID can be omitted.

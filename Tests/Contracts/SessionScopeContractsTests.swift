@@ -4,7 +4,7 @@ import Testing
 @testable import StickySpacesCLI
 @testable import StickySpacesShared
 
-@Suite("Session scope contracts")
+@Suite("Session scope contracts (C-3)")
 struct SessionScopeContractsTests {
     @Test("new app session starts with empty in-memory sticky state")
     func newAppSessionStartsWithEmptyInMemoryStickyState() async throws {

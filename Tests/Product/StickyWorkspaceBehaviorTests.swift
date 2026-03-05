@@ -3,7 +3,7 @@ import Testing
 @testable import StickySpacesApp
 @testable import StickySpacesShared
 
-@Suite("Sticky notes stay tied to their workspace")
+@Suite("Sticky notes stay tied to their workspace (FR-1, FR-2, FR-5)")
 struct StickyWorkspaceBehaviorTests {
     @Test("Creating a sticky binds it to the current workspace")
     func creatingStickyBindsItToCurrentWorkspace() async throws {

@@ -4,7 +4,7 @@ import Testing
 @testable import StickySpacesCLI
 @testable import StickySpacesShared
 
-@Suite("CLI workflows from a user perspective")
+@Suite("CLI workflows from a user perspective (CLI-NFR-4)")
 struct CLIWorkflowTests {
     @Test("user runs status and the CLI forwards the parsed command to automation")
     func userRunsStatusAndCliForwardsCommandToAutomation() async throws {

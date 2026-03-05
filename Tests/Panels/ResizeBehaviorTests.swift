@@ -5,7 +5,7 @@ import Foundation
 #if canImport(AppKit)
 import AppKit
 
-@Suite("Edge and corner resize behavior")
+@Suite("Edge and corner resize behavior (FR-4, FR-DI-4, C-DI-4)")
 struct ResizeBehaviorTests {
 
     @Test("Right-edge resize commits updated size via delegate")

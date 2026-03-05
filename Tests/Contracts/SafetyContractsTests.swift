@@ -4,7 +4,7 @@ import Testing
 @testable import StickySpacesCLI
 @testable import StickySpacesShared
 
-@Suite("Safety contracts")
+@Suite("Safety contracts (NFR-6, C-9, C-6)")
 struct SafetyContractsTests {
     @Test("single-instance launch lock rejects concurrent launcher")
     func singleInstanceLaunchLockRejectsConcurrentLauncher() async {

@@ -5,7 +5,7 @@ import Foundation
 #if canImport(AppKit)
 import AppKit
 
-@Suite("Sticky text view debounce behavior")
+@Suite("Sticky text view debounce behavior (FR-3, FR-DI-3, D-DI-4)")
 struct StickyTextViewTests {
 
     @Test("Text change fires delegate after debounce period")

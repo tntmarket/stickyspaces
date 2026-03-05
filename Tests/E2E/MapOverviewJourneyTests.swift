@@ -3,7 +3,7 @@ import Testing
 @testable import StickySpacesShared
 @testable import VideoCaptureCore
 
-@Suite("Map Overview — zoom out to see the big picture")
+@Suite("Map Overview — zoom out to see the big picture (ZO-FR-1, ZO-FR-2)")
 struct MapOverviewJourneyTests {
     @Test("zooming out is like zooming out of a country in google maps - the current desktop should pull away, and neighboring workspaces should pan into view")
     func desktopToOverviewJourney() async throws {

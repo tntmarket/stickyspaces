@@ -4,7 +4,7 @@ import Testing
 @testable import StickySpacesCLI
 @testable import StickySpacesShared
 
-@Suite("Compatibility contracts")
+@Suite("Compatibility contracts (C-7, NFR-7)")
 struct CompatibilityContractsTests {
     @Test("headless prerequisite diagnostics are actionable")
     func headlessPrerequisiteDiagnosticsAreActionable() {

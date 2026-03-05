@@ -7,6 +7,8 @@
 
 ---
 
+> **Note:** Canonical requirements have moved to [`openspec/specs/map-overview-zoom-out/spec.md`](../openspec/specs/map-overview-zoom-out/spec.md). This document is retained as architectural reference for design decisions, rationale, and implementation guidance.
+
 ## Overview
 
 This document is a dedicated extraction of Story 3 from the StickySpaces PRD, focused on the Map Overview zoom-out experience only. It defines what is required for users to reliably see the full workspace landscape, preserve spatial memory cues, and maintain orientation.

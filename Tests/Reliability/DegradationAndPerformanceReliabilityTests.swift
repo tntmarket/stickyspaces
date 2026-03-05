@@ -4,7 +4,7 @@ import Testing
 @testable import StickySpacesCLI
 @testable import StickySpacesShared
 
-@Suite("Degradation and performance reliability")
+@Suite("Degradation and performance reliability (C-2, C-8)")
 struct DegradationAndPerformanceReliabilityTests {
     @Test("focus-space timeout degrades capability while keeping the app responsive")
     func focusSpaceTimeoutDegradesCapabilityWhileKeepingTheAppResponsive() async throws {

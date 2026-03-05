@@ -4,7 +4,7 @@ import Testing
 @testable import StickySpacesCLI
 @testable import StickySpacesShared
 
-@Suite("Client connects to daemon via Unix socket and manages stickies")
+@Suite("Client connects to daemon via Unix socket and manages stickies (CLI-FR-1, CLI-FR-3, CLI-C-1)")
 struct IPCSocketRoundTripTests {
     @Test("client creates a sticky via socket and receives created response with workspace ID")
     func clientCreatesStickyViaSocketAndReceivesCreatedResponse() async throws {

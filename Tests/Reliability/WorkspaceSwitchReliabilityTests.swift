@@ -4,7 +4,7 @@ import Testing
 @testable import StickySpacesCLI
 @testable import StickySpacesShared
 
-@Suite("Workspace switching reliability")
+@Suite("Workspace switching reliability (FR-2)")
 struct WorkspaceSwitchReliabilityTests {
     @Test("rapid workspace switching converges and each space stays synced")
     func rapidWorkspaceSwitchingConvergesAndEachSpaceStaysSynced() async throws {

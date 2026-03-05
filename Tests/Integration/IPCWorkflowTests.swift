@@ -3,7 +3,7 @@ import Testing
 @testable import StickySpacesApp
 @testable import StickySpacesShared
 
-@Suite("IPC workflows from a client perspective")
+@Suite("IPC workflows from a client perspective (FR-1, FR-5, FR-6, FR-7)")
 struct IPCWorkflowTests {
     @Test("client creates then lists a sticky over newline-delimited JSON")
     func routesNewListOverTextProtocol() async throws {

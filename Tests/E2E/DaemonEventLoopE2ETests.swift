@@ -4,7 +4,7 @@ import Testing
 @testable import StickySpacesCLI
 @testable import StickySpacesShared
 
-@Suite("Daemon event loop processes IPC commands that require @MainActor", .serialized)
+@Suite("Daemon event loop processes IPC commands that require @MainActor (DEL-FR-1, DEL-FR-2)", .serialized)
 struct DaemonEventLoopE2ETests {
 
     @Test("CLI create command receives response from daemon within timeout")

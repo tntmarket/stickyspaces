@@ -3,7 +3,7 @@ import Testing
 
 @testable import StickySpacesCLI
 
-@Suite("Daemon mode instance lock prevents multiple daemons")
+@Suite("Daemon mode instance lock prevents multiple daemons (CLI-C-2)")
 struct DaemonModeTests {
     @Test("second flock attempt fails when lock is already held")
     func secondDaemonExitsWhenLockHeld() throws {

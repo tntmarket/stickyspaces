@@ -3,7 +3,7 @@ import Testing
 @testable import StickySpacesApp
 @testable import StickySpacesShared
 
-@Suite("Workspace lifecycle and runtime mode behavior")
+@Suite("Workspace lifecycle and runtime mode behavior (FR-11, C-5)")
 struct WorkspaceLifecycleBehaviorTests {
     @Test("Workspace view only shows stickies from that workspace")
     func workspaceViewShowsOnlyItsStickies() async throws {

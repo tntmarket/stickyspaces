@@ -8,6 +8,8 @@
 
 ---
 
+> **Note:** Canonical requirements have moved to [`openspec/specs/sticky-desktop-interaction/spec.md`](../openspec/specs/sticky-desktop-interaction/spec.md). This document is retained as architectural reference for design decisions, rationale, and implementation guidance.
+
 ## Overview
 
 This spec defines how stickies behave as interactive desktop objects — the chromeless appearance, drag-to-reposition, in-place text editing, hover-reveal dismiss, edge/corner resize, and workspace binding that make a sticky feel like a note rather than a window.

@@ -7,6 +7,8 @@
 
 ---
 
+> **Note:** Canonical requirements have moved to [`openspec/specs/core/spec.md`](../openspec/specs/core/spec.md). This document is retained as architectural reference for design decisions, rationale, and implementation guidance.
+
 ## Overview
 
 StickySpaces is a native macOS app that places persistent, chromeless sticky notes on each workspace so users can recover intent at a glance. It targets users with ADHD or limited working memory who encounter valuable side tasks during focused work and lose track of the original goal when they pursue them. When the user returns to a workspace, the sticky should immediately answer: "What am I doing here?"

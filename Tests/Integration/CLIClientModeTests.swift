@@ -4,7 +4,7 @@ import Testing
 @testable import StickySpacesCLI
 @testable import StickySpacesShared
 
-@Suite("CLI commands route through socket to a running daemon")
+@Suite("CLI commands route through socket to a running daemon (CLI-FR-2, CLI-FR-5, CLI-C-2)")
 struct CLIClientModeTests {
     @Test("user creates and lists stickies through the client runner")
     func userCreatesAndListsStickiesThroughClientRunner() async throws {

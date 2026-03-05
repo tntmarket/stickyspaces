@@ -4,7 +4,7 @@ import Testing
 @testable import StickySpacesApp
 @testable import StickySpacesShared
 
-@Suite("Canvas overview layout and snapshot behavior")
+@Suite("Canvas overview layout and snapshot behavior (ZO-FR-1, ZO-FR-3, ZO-FR-5, ZO-FR-7, ZO-NFR-2, ZO-NFR-3)")
 struct CanvasOverviewBehaviorTests {
     @Test("Canvas layout preserves custom workspace positions")
     func canvasLayoutPreservesCustomWorkspacePositions() async throws {

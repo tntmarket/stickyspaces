@@ -323,3 +323,4 @@ The system SHALL remove `.canJoinAllSpaces` and use the default (empty) collecti
 
 - **WHEN** Phase 1 revalidation determines that default collectionBehavior does not correctly bind the borderless panel to its creator Space
 - **THEN** the system falls back to ManualVisibility strategy using explicit orderFront/orderOut keyed by WorkspaceID
+

@@ -77,3 +77,4 @@ The system SHALL preserve compatibility with existing CLI integration tests and 
 
 - **WHEN** the full test suite is run after the entry point refactor
 - **THEN** all existing IPCSocketRoundTripTests pass without modification
+

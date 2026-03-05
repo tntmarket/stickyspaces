@@ -176,7 +176,6 @@ private final class ZoomOutOverviewWindowController {
         view.snapshot = snapshot
 
         let capturedImage = captureProvider.captureMainDisplay()
-        view.backgroundSnapshotImage = capturedImage
         if let capturedImage, let activeID = snapshot.activeWorkspaceID {
             view.regionThumbnails[activeID] = capturedImage
         }
@@ -184,11 +183,13 @@ private final class ZoomOutOverviewWindowController {
 
         preparedHeroSticky = heroSticky
 
-        let startScale: CGFloat = 1.15
-        let startPan = heroAnchoredPan(startScale: startScale, heroSticky: heroSticky, canvasBounds: view.bounds)
-        view.displayScale = startScale
-        view.panOffset = startPan
-        view.transitionProgress = 0
+        if let camera = view.cameraStateFillingRegion(snapshot.activeWorkspaceID) {
+            view.displayScale = camera.scale
+            view.panOffset = camera.pan
+        } else {
+            view.displayScale = 1.15
+            view.panOffset = .zero
+        }
         view.needsDisplay = true
 
         panel.alphaValue = 1
@@ -227,7 +228,6 @@ private final class ZoomOutOverviewWindowController {
                 x: interpolate(from: startPan.x, to: endPan.x, progress: eased),
                 y: interpolate(from: startPan.y, to: endPan.y, progress: eased)
             )
-            view.transitionProgress = eased
             view.needsDisplay = true
 
             if let heroAnchorCanvasPoint,
@@ -260,21 +260,6 @@ private final class ZoomOutOverviewWindowController {
 
     func hide() {
         panel.orderOut(nil)
-    }
-
-    private func heroAnchoredPan(startScale: CGFloat, heroSticky: StickyNote?, canvasBounds: CGRect) -> CGPoint {
-        guard let heroSticky else {
-            return .zero
-        }
-        let heroCenter = CGPoint(
-            x: heroSticky.position.x + (heroSticky.size.width / 2),
-            y: heroSticky.position.y + (heroSticky.size.height / 2)
-        )
-        let target = CGPoint(x: canvasBounds.midX * 0.42, y: canvasBounds.midY * 0.62)
-        return CGPoint(
-            x: target.x - (heroCenter.x * startScale),
-            y: target.y - (heroCenter.y * startScale)
-        )
     }
 
     private func interpolate(from: CGFloat, to: CGFloat, progress: CGFloat) -> CGFloat {
@@ -315,44 +300,18 @@ private final class ZoomOutOverviewView: NSView {
     )
     var displayScale: CGFloat = 1
     var panOffset: CGPoint = .zero
-    var transitionProgress: CGFloat = 1
-    var backgroundSnapshotImage: CGImage?
     var regionThumbnails: [WorkspaceID: CGImage] = [:]
 
     override func draw(_ dirtyRect: NSRect) {
-        if let context = NSGraphicsContext.current?.cgContext,
-           let backgroundSnapshotImage {
-            context.saveGState()
-            context.interpolationQuality = .high
-            context.draw(backgroundSnapshotImage, in: bounds)
-            context.restoreGState()
-        } else {
-            NSColor(calibratedRed: 0.05, green: 0.06, blue: 0.08, alpha: 0.98).setFill()
-            dirtyRect.fill()
-        }
-
-        let overlayAlpha = min(max(transitionProgress, 0), 1)
-        guard overlayAlpha > 0 else {
-            return
-        }
-        guard let context = NSGraphicsContext.current?.cgContext else {
-            return
-        }
-        context.saveGState()
-        context.setAlpha(overlayAlpha)
-        drawOverlay(in: dirtyRect)
-        context.restoreGState()
-    }
-
-    private func drawOverlay(in dirtyRect: NSRect) {
-        NSColor(calibratedRed: 0.05, green: 0.06, blue: 0.08, alpha: 0.98).setFill()
+        NSColor(calibratedRed: 0.05, green: 0.06, blue: 0.08, alpha: 1.0).setFill()
         dirtyRect.fill()
 
         guard let contentBounds = contentBounds() else {
-            drawHeader()
             return
         }
         let base = centeredBase(contentBounds: contentBounds, scale: displayScale)
+        let overviewScale = CGFloat(snapshot.viewport.zoomScale)
+        let showChrome = displayScale <= overviewScale * 2
 
         for region in snapshot.regions {
             let transformedFrame = transformed(
@@ -361,10 +320,29 @@ private final class ZoomOutOverviewView: NSView {
                 scale: displayScale,
                 panOffset: panOffset
             )
-            drawRegion(region, in: transformedFrame)
+            drawRegion(region, in: transformedFrame, showBorder: showChrome)
         }
 
-        drawHeader()
+        if showChrome {
+            drawHeader()
+        }
+    }
+
+    func cameraStateFillingRegion(_ regionID: WorkspaceID?) -> (scale: CGFloat, pan: CGPoint)? {
+        guard let regionID,
+              let region = snapshot.regions.first(where: { $0.workspaceID == regionID }),
+              let contentBounds = contentBounds() else {
+            return nil
+        }
+        let scale = max(
+            bounds.width / region.frame.width,
+            bounds.height / region.frame.height
+        )
+        let base = centeredBase(contentBounds: contentBounds, scale: scale)
+        return (scale, CGPoint(
+            x: bounds.midX - (region.frame.midX * scale) - base.x,
+            y: bounds.midY - (region.frame.midY * scale) - base.y
+        ))
     }
 
     func screenPoint(forCanvasPoint canvasPoint: CGPoint) -> CGPoint? {
@@ -390,21 +368,36 @@ private final class ZoomOutOverviewView: NSView {
         )
     }
 
-    private func drawRegion(_ region: CanvasRegionSnapshot, in frame: CGRect) {
-        let clipPath = NSBezierPath(roundedRect: frame, xRadius: 16, yRadius: 16)
+    private func drawRegion(_ region: CanvasRegionSnapshot, in frame: CGRect, showBorder: Bool) {
+        let cornerRadius: CGFloat = showBorder ? 16 : 0
+        let clipPath = NSBezierPath(roundedRect: frame, xRadius: cornerRadius, yRadius: cornerRadius)
 
         if let thumbnail = regionThumbnails[region.workspaceID],
            let context = NSGraphicsContext.current?.cgContext {
             context.saveGState()
             clipPath.addClip()
             context.interpolationQuality = .high
-            context.draw(thumbnail, in: frame)
+            context.draw(thumbnail, in: aspectFillRect(for: thumbnail, in: frame))
             context.restoreGState()
         } else {
             drawSyntheticRegionFill(region, path: clipPath)
         }
 
-        drawRegionBorder(region, in: frame)
+        if showBorder {
+            drawRegionBorder(region, in: frame)
+        }
+    }
+
+    private func aspectFillRect(for image: CGImage, in frame: CGRect) -> CGRect {
+        let imageAspect = CGFloat(image.width) / CGFloat(image.height)
+        let frameAspect = frame.width / frame.height
+        if imageAspect > frameAspect {
+            let drawWidth = frame.height * imageAspect
+            return CGRect(x: frame.midX - drawWidth / 2, y: frame.minY, width: drawWidth, height: frame.height)
+        } else {
+            let drawHeight = frame.width / imageAspect
+            return CGRect(x: frame.minX, y: frame.midY - drawHeight / 2, width: frame.width, height: drawHeight)
+        }
     }
 
     private func drawSyntheticRegionFill(_ region: CanvasRegionSnapshot, path: NSBezierPath) {

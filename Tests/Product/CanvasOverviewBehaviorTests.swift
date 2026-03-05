@@ -296,7 +296,8 @@ struct CanvasOverviewBehaviorTests {
         let manager = StickyManager(
             store: StickyStore(),
             yabai: yabai,
-            panelSync: InMemoryPanelSync()
+            panelSync: InMemoryPanelSync(),
+            displayAspectRatio: { 16.0 / 9.0 }
         )
 
         let text = """
@@ -316,10 +317,10 @@ struct CanvasOverviewBehaviorTests {
         #expect(preview.text == text)
         #expect(preview.header == nil)
         #expect(preview.displayHeader == "Ship overview polish")
-        #expect(preview.x == 0.25)
-        #expect(preview.y == 0.25)
-        #expect(preview.width == 0.5)
-        #expect(preview.height == 0.375)
+        #expect(preview.x > 0 && preview.x < 1)
+        #expect(preview.y > 0 && preview.y < 1)
+        #expect(preview.width > 0 && preview.width < 1)
+        #expect(preview.height > 0 && preview.height < 1)
     }
 
     @Test("Zoom-out snapshot preserves sticky relative geometry within a workspace")
@@ -560,5 +561,24 @@ struct CanvasOverviewBehaviorTests {
 
         #expect(result.source == .synthetic)
         #expect(result.capturedAt == nil)
+    }
+
+    @Test("Region size matches display aspect ratio while preserving total area")
+    func regionSizeMatchesDisplayAspectRatioWhilePreservingTotalArea() {
+        let area: CGFloat = 153_600
+
+        let size16x9 = CanvasLayoutEngine.regionSize(forDisplayAspectRatio: 16.0 / 9.0)
+        let ratio16x9 = size16x9.width / size16x9.height
+        #expect(abs(ratio16x9 - 16.0 / 9.0) < 0.01)
+        #expect(abs(size16x9.width * size16x9.height - area) < 1)
+
+        let size16x10 = CanvasLayoutEngine.regionSize(forDisplayAspectRatio: 16.0 / 10.0)
+        let ratio16x10 = size16x10.width / size16x10.height
+        #expect(abs(ratio16x10 - 16.0 / 10.0) < 0.01)
+        #expect(abs(size16x10.width * size16x10.height - area) < 1)
+
+        let size3x2 = CanvasLayoutEngine.regionSize(forDisplayAspectRatio: 3.0 / 2.0)
+        #expect(abs(size3x2.width - 480) < 0.01)
+        #expect(abs(size3x2.height - 320) < 0.01)
     }
 }

@@ -32,9 +32,6 @@ struct MapOverviewJourneyTests {
         #expect(snapshot.regions.allSatisfy { $0.thumbnail.displayID != nil })
         #expect(captureResult?.source == .liveCapture)
 
-        // Known gap: region aspect ratio (3:2) differs from display (16:9),
-        // so the thumbnail is aspect-fill cropped — expect ~54% diff.
-        // This threshold catches broken zoom (blank/dark overlay would be >80%).
         let abDiff = try ScreenshotMetrics.diff(
             baselineURL: frameA,
             candidateURL: frameB,
@@ -42,7 +39,7 @@ struct MapOverviewJourneyTests {
             perChannelTolerance: 2,
             sampleStride: 2
         )
-        #expect(abDiff.changedPixelRatio <= 0.65)
+        #expect(abDiff.changedPixelRatio <= 0.05)
 
         // The camera zooms out smoothly to show all workspaces as recognizable thumbnails
         let metrics = try await session.harness.animatePreparedZoomOutOverlayCollectingMetrics()

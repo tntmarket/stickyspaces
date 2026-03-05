@@ -3,15 +3,27 @@ import Foundation
 import StickySpacesShared
 
 public enum CanvasLayoutEngine {
-    public static let regionSize = CGSize(width: 480, height: 320)
+    static let targetRegionArea: CGFloat = 153_600
+    public static let defaultAspectRatio: CGFloat = 1.5
     private static let horizontalSpacing: CGFloat = 80
     private static let verticalSpacing: CGFloat = 80
     private static let columns = 3
 
+    public static let regionSize = CGSize(width: 480, height: 320)
+
+    public static func regionSize(forDisplayAspectRatio ratio: CGFloat) -> CGSize {
+        let clamped = max(1.0, min(ratio, 3.0))
+        let width = (targetRegionArea * clamped).squareRoot()
+        let height = (targetRegionArea / clamped).squareRoot()
+        return CGSize(width: width, height: height)
+    }
+
     public static func resolveLayout(
         storedLayout: CanvasLayout,
-        workspaces: [WorkspaceDescriptor]
+        workspaces: [WorkspaceDescriptor],
+        displayAspectRatio: CGFloat = defaultAspectRatio
     ) -> CanvasLayout {
+        let size = regionSize(forDisplayAspectRatio: displayAspectRatio)
         let sortedWorkspaces = workspaces.sorted { $0.workspaceID.rawValue < $1.workspaceID.rawValue }
         var positions = storedLayout.workspacePositions
         var displayIDs = storedLayout.workspaceDisplayIDs
@@ -19,7 +31,7 @@ public enum CanvasLayoutEngine {
         for descriptor in sortedWorkspaces {
             displayIDs[descriptor.workspaceID] = descriptor.displayID
             if positions[descriptor.workspaceID] == nil {
-                positions[descriptor.workspaceID] = nextDefaultPosition(occupied: Array(positions.values))
+                positions[descriptor.workspaceID] = nextDefaultPosition(occupied: Array(positions.values), size: size)
             }
         }
 
@@ -34,8 +46,10 @@ public enum CanvasLayoutEngine {
         workspaces: [WorkspaceDescriptor],
         stickies: [StickyNote],
         activeWorkspaceID: WorkspaceID?,
-        viewport: CanvasViewportState
+        viewport: CanvasViewportState,
+        displayAspectRatio: CGFloat = defaultAspectRatio
     ) -> CanvasSnapshot {
+        let size = regionSize(forDisplayAspectRatio: displayAspectRatio)
         let stickiesByWorkspace = Dictionary(grouping: stickies, by: \.workspaceID)
         let stickyCounts: [WorkspaceID: Int] = stickiesByWorkspace.mapValues(\.count)
         let sortedWorkspaces = workspaces.sorted { $0.workspaceID.rawValue < $1.workspaceID.rawValue }
@@ -43,8 +57,8 @@ public enum CanvasLayoutEngine {
             guard let origin = layout.workspacePositions[descriptor.workspaceID] else {
                 return nil
             }
-            let frame = CGRect(origin: origin, size: regionSize)
-            let stickyPreviews = makeStickyPreviews(for: stickiesByWorkspace[descriptor.workspaceID] ?? [])
+            let frame = CGRect(origin: origin, size: size)
+            let stickyPreviews = makeStickyPreviews(for: stickiesByWorkspace[descriptor.workspaceID] ?? [], size: size)
             return CanvasRegionSnapshot(
                 workspaceID: descriptor.workspaceID,
                 displayID: descriptor.displayID,
@@ -67,15 +81,15 @@ public enum CanvasLayoutEngine {
         )
     }
 
-    private static func makeStickyPreviews(for notes: [StickyNote]) -> [CanvasStickyPreview] {
+    private static func makeStickyPreviews(for notes: [StickyNote], size: CGSize) -> [CanvasStickyPreview] {
         guard !notes.isEmpty else {
             return []
         }
 
-        let maxX = notes.map { $0.position.x + max(1, $0.size.width) }.max() ?? regionSize.width
-        let maxY = notes.map { $0.position.y + max(1, $0.size.height) }.max() ?? regionSize.height
-        let workspaceWidth = max(1, max(regionSize.width, maxX))
-        let workspaceHeight = max(1, max(regionSize.height, maxY))
+        let maxX = notes.map { $0.position.x + max(1, $0.size.width) }.max() ?? size.width
+        let maxY = notes.map { $0.position.y + max(1, $0.size.height) }.max() ?? size.height
+        let workspaceWidth = max(1, max(size.width, maxX))
+        let workspaceHeight = max(1, max(size.height, maxY))
 
         return notes
             .sorted { $0.createdAt < $1.createdAt }
@@ -92,13 +106,13 @@ public enum CanvasLayoutEngine {
             }
     }
 
-    private static func nextDefaultPosition(occupied: [CGPoint]) -> CGPoint {
+    private static func nextDefaultPosition(occupied: [CGPoint], size: CGSize) -> CGPoint {
         var slot = 0
         while true {
-            let candidate = point(forSlot: slot)
-            let candidateFrame = CGRect(origin: candidate, size: regionSize)
+            let candidate = point(forSlot: slot, size: size)
+            let candidateFrame = CGRect(origin: candidate, size: size)
             if occupied.allSatisfy({ existing in
-                let frame = CGRect(origin: existing, size: regionSize)
+                let frame = CGRect(origin: existing, size: size)
                 return frame.intersects(candidateFrame) == false
             }) {
                 return candidate
@@ -107,11 +121,11 @@ public enum CanvasLayoutEngine {
         }
     }
 
-    private static func point(forSlot slot: Int) -> CGPoint {
+    private static func point(forSlot slot: Int, size: CGSize) -> CGPoint {
         let row = slot / columns
         let column = slot % columns
-        let x = CGFloat(column) * (regionSize.width + horizontalSpacing)
-        let y = CGFloat(row) * (regionSize.height + verticalSpacing)
+        let x = CGFloat(column) * (size.width + horizontalSpacing)
+        let y = CGFloat(row) * (size.height + verticalSpacing)
         return CGPoint(x: x, y: y)
     }
 

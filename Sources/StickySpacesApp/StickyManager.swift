@@ -33,6 +33,7 @@ public actor StickyManager {
     private let topologyReconciler: WorkspaceTopologyReconciler
     private let transitionProfile: ZoomTransitionProfile
     private let timeoutPolicy: YabaiTimeoutPolicy
+    private let displayAspectRatio: @Sendable () -> CGFloat
 
     public init(
         store: StickyStore,
@@ -40,7 +41,8 @@ public actor StickyManager {
         panelSync: any PanelSyncing,
         topologyReconciler: WorkspaceTopologyReconciler = WorkspaceTopologyReconciler(),
         transitionProfile: ZoomTransitionProfile = .phase0Selected,
-        timeoutPolicy: YabaiTimeoutPolicy = YabaiTimeoutPolicy()
+        timeoutPolicy: YabaiTimeoutPolicy = YabaiTimeoutPolicy(),
+        displayAspectRatio: @escaping @Sendable () -> CGFloat = mainDisplayAspectRatio
     ) {
         self.store = store
         self.yabai = yabai
@@ -48,6 +50,7 @@ public actor StickyManager {
         self.topologyReconciler = topologyReconciler
         self.transitionProfile = transitionProfile
         self.timeoutPolicy = timeoutPolicy
+        self.displayAspectRatio = displayAspectRatio
     }
 
     public func createSticky(text: String) async throws -> StickyCreateResult {
@@ -178,7 +181,8 @@ public actor StickyManager {
             workspaces: topology.spaces,
             stickies: stickies,
             activeWorkspaceID: activeWorkspaceID,
-            viewport: viewport
+            viewport: viewport,
+            displayAspectRatio: displayAspectRatio()
         )
     }
 
@@ -393,7 +397,8 @@ public actor StickyManager {
         let existingLayout = await store.canvasLayout()
         let resolved = CanvasLayoutEngine.resolveLayout(
             storedLayout: existingLayout,
-            workspaces: topology.spaces
+            workspaces: topology.spaces,
+            displayAspectRatio: displayAspectRatio()
         )
         await store.setCanvasLayout(resolved)
         return resolved
@@ -476,4 +481,10 @@ public actor StickyManager {
             return result
         }
     }
+}
+
+public func mainDisplayAspectRatio() -> CGFloat {
+    let bounds = CGDisplayBounds(CGMainDisplayID())
+    guard bounds.height > 0 else { return CanvasLayoutEngine.defaultAspectRatio }
+    return bounds.width / bounds.height
 }

@@ -310,7 +310,7 @@ private enum HarnessError: Error {
 }
 
 private extension ISO8601DateFormatter {
-    static let artifactTimestamp: ISO8601DateFormatter = {
+    nonisolated(unsafe) static let artifactTimestamp: ISO8601DateFormatter = {
         let f = ISO8601DateFormatter()
         f.formatOptions = [.withFullDate, .withTime]
         f.timeZone = .current

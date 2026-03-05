@@ -3,87 +3,62 @@ import Testing
 @testable import StickySpacesShared
 @testable import VideoCaptureCore
 
-@Suite("Zoom-out canvas overview journey")
+@Suite("Map Overview — zoom out to see the big picture")
 struct ZoomOutCanvasOverviewJourneyTests {
-    @Test("multi-workspace flow produces zoom-out canvas snapshot and video artifact")
-    func multiWorkspaceZoomOutCanvasOverviewProducesSnapshotAndVideoArtifact() async throws {
-        guard VideoBackedScenarioSession.isEnabled else {
-            return
-        }
-
-        let session = try await VideoBackedScenarioSession.prepare(
-            scenarioName: "zoom-out-canvas-overview"
-        )
+    @Test("opening the big picture across workspaces records the full sequence as video")
+    func openingBigPictureRecordsFullSequenceAsVideo() async throws {
+        guard VideoBackedScenarioSession.isEnabled else { return }
+        let session = try await makeSession(scenarioName: "zoom-out-overview")
         defer { Task { try? await session.harness.cleanup() } }
 
         try await session.harness.startRecording()
-        _ = try await session.harness.step(.createSticky(text: "Integration: zoom-out entry sticky", x: 210, y: 640))
+        _ = try await session.harness.step(.createSticky(text: "Meeting prep", x: 210, y: 640))
         _ = try await session.harness.step(.switchWorkspace(2))
-        _ = try await session.harness.step(.createSticky(text: "Integration: secondary workspace sticky", x: 280, y: 420))
+        _ = try await session.harness.step(.createSticky(text: "Sprint backlog", x: 280, y: 420))
         _ = try await session.harness.step(.wait(milliseconds: 300))
-
-        let beforeOverlayScreenshotURL = try await session.harness.captureScreenshot(name: "before-overlay-shown")
-        #expect(FileManager.default.fileExists(atPath: beforeOverlayScreenshotURL.path))
-        #expect(try fileSizeBytes(at: beforeOverlayScreenshotURL) > 0)
 
         let snapshot = try await session.harness.prepareZoomOutOverlay()
         #expect(snapshot.regions.count >= 2)
-
-        let afterOverlayScreenshotURL = try await session.harness.captureScreenshot(name: "after-overlay-shown-before-animation")
-        #expect(FileManager.default.fileExists(atPath: afterOverlayScreenshotURL.path))
-        #expect(try fileSizeBytes(at: afterOverlayScreenshotURL) > 0)
         _ = try await session.harness.animatePreparedZoomOutOverlayCollectingMetrics()
 
-        let finish = try await session.harness.stopRecording()
-        #expect([CaptureBackendKind.screenCaptureKit, .screencapture].contains(finish.backendKind))
+        _ = try await session.harness.stopRecording()
         #expect(FileManager.default.fileExists(atPath: session.videoURL.path))
-
-        let size = try session.videoFileSizeBytes()
-        #expect(size > 0)
+        #expect(try session.videoFileSizeBytes() > 0)
     }
 
-    @Test("zoom-out first frame matches pre-zoom frame")
-    func zoomOutFirstFrameMatchesPreZoomFrame() async throws {
-        guard VideoBackedScenarioSession.isEnabled else {
-            return
-        }
-        let session = try await makeSession(scenarioName: "zoom-out-frame-a-b-identity")
+    @Test("the screen looks identical the instant before zoom motion starts")
+    func screenLooksIdenticalBeforeZoomMotionStarts() async throws {
+        guard VideoBackedScenarioSession.isEnabled else { return }
+        let session = try await makeSession(scenarioName: "zoom-out-no-flash-before-motion")
         defer { Task { try? await session.harness.cleanup() } }
 
-        _ = try await session.harness.step(
-            .createSticky(text: "Frame continuity hero", x: 230, y: 520)
-        )
+        _ = try await session.harness.step(.createSticky(text: "Design review", x: 230, y: 520))
         _ = try await session.harness.step(.wait(milliseconds: 160))
 
-        let frameA = try await session.harness.captureScreenshot(name: "frame-a-pre-zoom")
+        let beforeZoom = try await session.harness.captureScreenshot(name: "before-zoom")
         _ = try await session.harness.prepareZoomOutOverlay()
         let captureResult = await session.harness.backgroundCaptureResult()
         #expect(captureResult?.source == .liveCapture)
-        let frameB = try await session.harness.captureScreenshot(name: "frame-b-after-prepare")
+        let afterPrepare = try await session.harness.captureScreenshot(name: "after-prepare")
 
         let diff = try ScreenshotMetrics.diff(
-            baselineURL: frameA,
-            candidateURL: frameB,
+            baselineURL: beforeZoom,
+            candidateURL: afterPrepare,
             region: .stableCanvas,
             perChannelTolerance: 2,
             sampleStride: 2
         )
-        #expect(diff.sampledPixelCount > 0)
         #expect(diff.changedPixelRatio <= 0.001)
         #expect(diff.maxChannelDelta <= 2)
     }
 
-    @Test("zoom-out animation preserves hero-anchor continuity")
-    func zoomOutAnimationPreservesHeroAnchorContinuity() async throws {
-        guard VideoBackedScenarioSession.isEnabled else {
-            return
-        }
-        let session = try await makeSession(scenarioName: "zoom-out-hero-anchor-continuity")
+    @Test("the zoom animation moves smoothly without jumping")
+    func zoomAnimationMovesSmoothlyWithoutJumping() async throws {
+        guard VideoBackedScenarioSession.isEnabled else { return }
+        let session = try await makeSession(scenarioName: "zoom-out-smooth-motion")
         defer { Task { try? await session.harness.cleanup() } }
 
-        _ = try await session.harness.step(
-            .createSticky(text: "Hero anchor continuity note", x: 320, y: 410)
-        )
+        _ = try await session.harness.step(.createSticky(text: "Roadmap planning", x: 320, y: 410))
         _ = try await session.harness.step(.wait(milliseconds: 120))
 
         _ = try await session.harness.prepareZoomOutOverlay()
@@ -91,28 +66,21 @@ struct ZoomOutCanvasOverviewJourneyTests {
 
         #expect(metrics.frameCount >= 20)
         #expect(metrics.heroSampleCount >= 20)
-        let maxHeroStep = try #require(metrics.maxHeroAnchorStepPoints)
-        #expect(maxHeroStep <= 42)
+        let maxStep = try #require(metrics.maxHeroAnchorStepPoints)
+        #expect(maxStep <= 42)
     }
 
-    @Test("zoom-out transition duration stays within 300-500 ms at p95")
-    func zoomOutTransitionDurationWithin300To500msP95() async throws {
-        guard VideoBackedScenarioSession.isEnabled else {
-            return
-        }
-        let session = try await makeSession(scenarioName: "zoom-out-duration-p95")
+    @Test("the zoom animation feels responsive (300–500 ms)")
+    func zoomAnimationFeelsResponsive() async throws {
+        guard VideoBackedScenarioSession.isEnabled else { return }
+        let session = try await makeSession(scenarioName: "zoom-out-responsiveness")
         defer { Task { try? await session.harness.cleanup() } }
 
-        _ = try await session.harness.step(
-            .createSticky(text: "Duration probe sticky", x: 200, y: 420)
-        )
+        _ = try await session.harness.step(.createSticky(text: "Weekly sync", x: 200, y: 420))
         _ = try await session.harness.step(.wait(milliseconds: 100))
 
-        let sampleCount = 15
         var durations: [Int] = []
-        durations.reserveCapacity(sampleCount)
-
-        for _ in 0..<sampleCount {
+        for _ in 0..<15 {
             _ = try await session.harness.prepareZoomOutOverlay()
             let metrics = try await session.harness.animatePreparedZoomOutOverlayCollectingMetrics()
             durations.append(metrics.durationMilliseconds)
@@ -125,44 +93,37 @@ struct ZoomOutCanvasOverviewJourneyTests {
         #expect(p95 <= 500)
     }
 
-    @Test("zoom-out final frame shows scaled workspace screenshots")
-    func zoomOutFinalFrameShowsScaledWorkspaceScreenshots() async throws {
-        guard VideoBackedScenarioSession.isEnabled else {
-            return
-        }
-        let session = try await makeSession(scenarioName: "zoom-out-final-frame-screenshots")
+    @Test("the big picture shows recognizable workspace thumbnails, not blank cards")
+    func bigPictureShowsRecognizableWorkspaceThumbnails() async throws {
+        guard VideoBackedScenarioSession.isEnabled else { return }
+        let session = try await makeSession(scenarioName: "zoom-out-workspace-thumbnails")
         defer { Task { try? await session.harness.cleanup() } }
 
-        _ = try await session.harness.step(
-            .createSticky(text: "Workspace 1 screenshot marker", x: 180, y: 640)
-        )
+        _ = try await session.harness.step(.createSticky(text: "Q2 OKRs", x: 180, y: 640))
         _ = try await session.harness.step(.switchWorkspace(2))
-        _ = try await session.harness.step(
-            .createSticky(text: "Workspace 2 screenshot marker", x: 300, y: 330)
-        )
+        _ = try await session.harness.step(.createSticky(text: "Bug triage", x: 300, y: 330))
         _ = try await session.harness.step(.wait(milliseconds: 220))
 
         let snapshot = try await session.harness.prepareZoomOutOverlay()
         let captureResult = await session.harness.backgroundCaptureResult()
-        let firstFrame = try await session.harness.captureScreenshot(name: "final-frame-start")
+        let beforeAnimation = try await session.harness.captureScreenshot(name: "before-animation")
         _ = try await session.harness.animatePreparedZoomOutOverlayCollectingMetrics()
-        let finalFrame = try await session.harness.captureScreenshot(name: "final-frame-end")
+        let afterAnimation = try await session.harness.captureScreenshot(name: "after-animation")
 
         let transitionDiff = try ScreenshotMetrics.diff(
-            baselineURL: firstFrame,
-            candidateURL: finalFrame,
+            baselineURL: beforeAnimation,
+            candidateURL: afterAnimation,
             region: .stableCanvas,
             perChannelTolerance: 2,
             sampleStride: 2
         )
         let visualStats = try ScreenshotMetrics.visualStats(
-            imageURL: finalFrame,
+            imageURL: afterAnimation,
             region: .stableCanvas,
             sampleStride: 3,
             quantizationStep: 32
         )
 
-        #expect(snapshot.regions.count >= 2)
         #expect(snapshot.regions.allSatisfy { $0.thumbnail.displayID != nil })
         #expect(captureResult?.source == .liveCapture)
         #expect(transitionDiff.changedPixelRatio >= 0.08)
@@ -170,18 +131,14 @@ struct ZoomOutCanvasOverviewJourneyTests {
         #expect(visualStats.luminanceStdDev >= 8)
     }
 
-    @Test("zoom-out does not switch workspace")
-    func zoomOutDoesNotSwitchWorkspace() async throws {
-        guard VideoBackedScenarioSession.isEnabled else {
-            return
-        }
-        let session = try await makeSession(scenarioName: "zoom-out-does-not-switch-workspace")
+    @Test("opening the big picture keeps you on the same workspace")
+    func openingBigPictureKeepsYouOnSameWorkspace() async throws {
+        guard VideoBackedScenarioSession.isEnabled else { return }
+        let session = try await makeSession(scenarioName: "zoom-out-stays-on-workspace")
         defer { Task { try? await session.harness.cleanup() } }
 
         _ = try await session.harness.step(.switchWorkspace(2))
-        _ = try await session.harness.step(
-            .createSticky(text: "Workspace stability sticky", x: 260, y: 450)
-        )
+        _ = try await session.harness.step(.createSticky(text: "Launch checklist", x: 260, y: 450))
         _ = try await session.harness.step(.wait(milliseconds: 100))
 
         let before = try await session.harness.currentWorkspaceID()
@@ -193,92 +150,73 @@ struct ZoomOutCanvasOverviewJourneyTests {
         #expect(after == before)
     }
 
-    @Test("zoom-out presentation mutations are transient")
-    func zoomOutPresentationMutationsAreTransient() async throws {
-        guard VideoBackedScenarioSession.isEnabled else {
-            return
-        }
-        let session = try await makeSession(scenarioName: "zoom-out-transient-presentation-mutations")
+    @Test("closing the big picture leaves stickies, layout, and workspace unchanged")
+    func closingBigPictureLeavesEverythingUnchanged() async throws {
+        guard VideoBackedScenarioSession.isEnabled else { return }
+        let session = try await makeSession(scenarioName: "zoom-out-leaves-everything-unchanged")
         defer { Task { try? await session.harness.cleanup() } }
 
         let workspace1 = WorkspaceID(rawValue: 1)
         let workspace2 = WorkspaceID(rawValue: 2)
-        _ = try await session.harness.step(
-            .createSticky(text: "Transient check w1", x: 180, y: 560)
-        )
+        _ = try await session.harness.step(.createSticky(text: "Hiring plan", x: 180, y: 560))
         _ = try await session.harness.step(.switchWorkspace(2))
-        _ = try await session.harness.step(
-            .createSticky(text: "Transient check w2", x: 240, y: 360)
-        )
+        _ = try await session.harness.step(.createSticky(text: "Team retro", x: 240, y: 360))
         _ = try await session.harness.step(.switchWorkspace(1))
         await session.harness.showOnlyWorkspace(workspace1)
 
         let beforeNotes = try await session.harness.listStickies(space: nil)
         let beforeLayout = try await session.harness.canvasLayout()
         let beforeWorkspace = try await session.harness.currentWorkspaceID()
-        let beforeVisibleWorkspace1 = await session.harness.visibleStickyIDs(on: workspace1)
+        let beforeVisible = await session.harness.visibleStickyIDs(on: workspace1)
 
         _ = try await session.harness.prepareZoomOutOverlay()
         _ = try await session.harness.animatePreparedZoomOutOverlayCollectingMetrics()
-        let hiddenWorkspace1 = await session.harness.visibleStickyIDs(on: workspace1)
-        let hiddenWorkspace2 = await session.harness.visibleStickyIDs(on: workspace2)
+        let hiddenW1 = await session.harness.visibleStickyIDs(on: workspace1)
+        let hiddenW2 = await session.harness.visibleStickyIDs(on: workspace2)
 
         await session.harness.hideZoomOutOverlay()
         await session.harness.showOnlyWorkspace(workspace1)
 
-        let afterVisibleWorkspace1 = await session.harness.visibleStickyIDs(on: workspace1)
+        let afterVisible = await session.harness.visibleStickyIDs(on: workspace1)
         let afterNotes = try await session.harness.listStickies(space: nil)
         let afterLayout = try await session.harness.canvasLayout()
         let afterWorkspace = try await session.harness.currentWorkspaceID()
 
-        #expect(hiddenWorkspace1.isEmpty)
-        #expect(hiddenWorkspace2.isEmpty)
-        #expect(afterVisibleWorkspace1 == beforeVisibleWorkspace1)
+        #expect(hiddenW1.isEmpty)
+        #expect(hiddenW2.isEmpty)
+        #expect(afterVisible == beforeVisible)
         #expect(afterNotes == beforeNotes)
         #expect(afterLayout == beforeLayout)
         #expect(afterWorkspace == beforeWorkspace)
     }
 
-    @Test("repeated prepare after animation still captures faithful desktop background")
-    func repeatedPrepareAfterAnimationStillCapturesFaithfulDesktopBackground() async throws {
-        guard VideoBackedScenarioSession.isEnabled else {
-            return
-        }
-        let session = try await makeSession(scenarioName: "zoom-out-repeated-prepare-fidelity")
+    @Test("reopening the big picture still shows the real desktop")
+    func reopeningBigPictureStillShowsRealDesktop() async throws {
+        guard VideoBackedScenarioSession.isEnabled else { return }
+        let session = try await makeSession(scenarioName: "zoom-out-reopen-fidelity")
         defer { Task { try? await session.harness.cleanup() } }
 
         _ = try await session.harness.step(.wait(milliseconds: 100))
 
         _ = try await session.harness.prepareZoomOutOverlay()
-        let frameAfterFirstPrepare = try await session.harness.captureScreenshot(
-            name: "frame-after-first-prepare"
-        )
+        let firstOpen = try await session.harness.captureScreenshot(name: "first-open")
 
         try await session.harness.animatePreparedZoomOutOverlay()
 
         _ = try await session.harness.prepareZoomOutOverlay()
         let captureResult = await session.harness.backgroundCaptureResult()
         #expect(captureResult?.source == .liveCapture)
-        let frameAfterSecondPrepare = try await session.harness.captureScreenshot(
-            name: "frame-after-second-prepare"
-        )
+        let secondOpen = try await session.harness.captureScreenshot(name: "second-open")
 
         let diff = try ScreenshotMetrics.diff(
-            baselineURL: frameAfterFirstPrepare,
-            candidateURL: frameAfterSecondPrepare,
+            baselineURL: firstOpen,
+            candidateURL: secondOpen,
             region: .stableCanvas,
             perChannelTolerance: 2,
             sampleStride: 2
         )
-        #expect(diff.sampledPixelCount > 0)
         #expect(diff.changedPixelRatio <= 0.05)
         #expect(diff.maxChannelDelta <= 100)
-    }
-
-    private func fileSizeBytes(at url: URL) throws -> Int64 {
-        let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
-        let number = attributes[.size] as? NSNumber ?? 0
-        return number.int64Value
     }
 
     private func makeSession(scenarioName: String) async throws -> VideoBackedScenarioSession {

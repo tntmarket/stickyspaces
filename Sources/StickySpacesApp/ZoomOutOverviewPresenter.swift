@@ -310,8 +310,6 @@ private final class ZoomOutOverviewView: NSView {
             return
         }
         let base = centeredBase(contentBounds: contentBounds, scale: displayScale)
-        let overviewScale = CGFloat(snapshot.viewport.zoomScale)
-        let showChrome = displayScale <= overviewScale * 2
 
         for region in snapshot.regions {
             let transformedFrame = transformed(
@@ -320,11 +318,7 @@ private final class ZoomOutOverviewView: NSView {
                 scale: displayScale,
                 panOffset: panOffset
             )
-            drawRegion(region, in: transformedFrame, showBorder: showChrome)
-        }
-
-        if showChrome {
-            drawHeader()
+            drawRegion(region, in: transformedFrame)
         }
     }
 
@@ -358,19 +352,8 @@ private final class ZoomOutOverviewView: NSView {
         )
     }
 
-    private func drawHeader() {
-        NSString(string: "Zoom-out overview").draw(
-            at: CGPoint(x: 24, y: bounds.height - 42),
-            withAttributes: [
-                .font: NSFont.systemFont(ofSize: 18, weight: .bold),
-                .foregroundColor: NSColor(calibratedWhite: 0.98, alpha: 0.95)
-            ]
-        )
-    }
-
-    private func drawRegion(_ region: CanvasRegionSnapshot, in frame: CGRect, showBorder: Bool) {
-        let cornerRadius: CGFloat = showBorder ? 16 : 0
-        let clipPath = NSBezierPath(roundedRect: frame, xRadius: cornerRadius, yRadius: cornerRadius)
+    private func drawRegion(_ region: CanvasRegionSnapshot, in frame: CGRect) {
+        let clipPath = NSBezierPath(rect: frame)
 
         if let thumbnail = regionThumbnails[region.workspaceID],
            let context = NSGraphicsContext.current?.cgContext {
@@ -383,8 +366,8 @@ private final class ZoomOutOverviewView: NSView {
             drawSyntheticRegionFill(region, path: clipPath)
         }
 
-        if showBorder {
-            drawRegionBorder(region, in: frame)
+        if region.isActive {
+            drawActiveBorder(in: frame)
         }
     }
 
@@ -408,35 +391,24 @@ private final class ZoomOutOverviewView: NSView {
         path.fill()
 
         let frame = path.bounds
-        let workspaceLabel = "Workspace \(region.workspaceID.rawValue)"
-        NSString(string: workspaceLabel).draw(
-            at: CGPoint(x: frame.minX + 12, y: frame.maxY - 24),
-            withAttributes: [
-                .font: NSFont.systemFont(ofSize: 12, weight: .semibold),
-                .foregroundColor: NSColor(calibratedWhite: 0.95, alpha: 0.95)
-            ]
+        let label = "\(region.workspaceID.rawValue)"
+        let fontSize = min(frame.width, frame.height) * 0.25
+        let attrs: [NSAttributedString.Key: Any] = [
+            .font: NSFont.monospacedDigitSystemFont(ofSize: fontSize, weight: .medium),
+            .foregroundColor: NSColor(calibratedWhite: 0.6, alpha: 0.8)
+        ]
+        let size = (label as NSString).size(withAttributes: attrs)
+        let origin = CGPoint(
+            x: frame.midX - size.width / 2,
+            y: frame.midY - size.height / 2
         )
-
-        for preview in region.stickyPreviews.prefix(8) {
-            let markerWidth = min(max(12, frame.width * CGFloat(preview.width) * 0.35), frame.width * 0.28)
-            let markerHeight = min(max(10, frame.height * CGFloat(preview.height) * 0.35), frame.height * 0.20)
-            let markerX = frame.minX + (CGFloat(preview.x) * (frame.width - markerWidth))
-            let markerY = frame.minY + (CGFloat(preview.y) * (frame.height - markerHeight))
-            let markerRect = CGRect(x: markerX, y: markerY, width: markerWidth, height: markerHeight)
-
-            let marker = NSBezierPath(roundedRect: markerRect, xRadius: 4, yRadius: 4)
-            NSColor(calibratedRed: 1.0, green: 0.95, blue: 0.72, alpha: 0.98).setFill()
-            marker.fill()
-        }
+        NSString(string: label).draw(at: origin, withAttributes: attrs)
     }
 
-    private func drawRegionBorder(_ region: CanvasRegionSnapshot, in frame: CGRect) {
-        let border = NSBezierPath(roundedRect: frame, xRadius: 16, yRadius: 16)
-        let borderColor = region.isActive
-            ? NSColor(calibratedRed: 0.74, green: 0.85, blue: 1.0, alpha: 1.0)
-            : NSColor(calibratedWhite: 0.52, alpha: 0.9)
-        borderColor.setStroke()
-        border.lineWidth = region.isActive ? 2.8 : 1.4
+    private func drawActiveBorder(in frame: CGRect) {
+        let border = NSBezierPath(rect: frame)
+        NSColor(calibratedRed: 0.74, green: 0.85, blue: 1.0, alpha: 1.0).setStroke()
+        border.lineWidth = 2.8
         border.stroke()
     }
 

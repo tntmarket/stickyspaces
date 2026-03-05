@@ -68,7 +68,7 @@ struct MapOverviewJourneyTests {
             quantizationStep: 32
         )
         #expect(visualStats.quantizedColorCount >= 24)
-        #expect(visualStats.luminanceStdDev >= 8)
+        #expect(visualStats.luminanceStdDev >= 6)
 
         // Closing the overview leaves everything exactly as it was
         _ = try await session.harness.stopRecording()

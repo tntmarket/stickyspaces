@@ -1,6 +1,6 @@
 ## Purpose
 
-Specifies how sticky notes interact with the macOS desktop — chromeless appearance, drag-to-reposition, in-place text editing, edge/corner resize, hover-reveal dismiss, GUI-to-store coherence, and workspace binding. Links to parent capability `core` (references D-3, D-6, C-1, FR-3, FR-4, FR-6) and PRD stories 1, 2, 5.
+Specifies how sticky notes interact with the macOS desktop — chromeless appearance, drag-to-reposition, in-place text editing, edge/corner resize, hover-reveal dismiss, GUI-to-store coherence, and workspace binding. Links to parent capability `core` (references C-1, FR-3, FR-4, FR-6) and PRD stories 1, 2, 5.
 
 ## Requirements
 
@@ -12,11 +12,6 @@ The system SHALL render each sticky without any window title bar, traffic-light 
 
 - **WHEN** a sticky is created and displayed on the desktop
 - **THEN** the panel has no title bar, no traffic-light close/minimize/zoom buttons, and no window-frame decoration
-
-#### Scenario: Sticky uses borderless style mask
-
-- **WHEN** the StickyPanel is initialized
-- **THEN** its style mask is `[.borderless, .nonactivatingPanel]` with no `.titled`, `.closable`, or `.resizable` flags
 
 ### Requirement: FR-DI-2 Repositioning via Drag Strip
 
@@ -206,121 +201,18 @@ The system SHALL enforce a minimum sticky size of 120pt x 80pt during resize, so
 - **WHEN** the user attempts to resize a sticky below 80pt height
 - **THEN** the height is clamped to 80pt
 
-### Requirement: C-DI-5 Consistency with Parent Spec
+### Requirement: C-DI-5 Consistency with parent spec panel contract
 
-The system SHALL align its panel configuration with parent spec D-3 (default collectionBehavior for workspace binding) and D-6 (borderless, non-activating, floating), so that this spec implements within the architectural contract established by the parent spec.
+The system SHALL configure panels as chromeless, non-activating, floating, and bound to a single workspace, consistent with the parent spec (C-1), so that stickies feel like notes rather than application windows.
 
-#### Scenario: Panel uses default collectionBehavior
-
-- **WHEN** a StickyPanel is created
-- **THEN** its collectionBehavior is the default (empty) value, not `.canJoinAllSpaces`
-
-#### Scenario: Panel uses borderless non-activating floating config
+#### Scenario: Panel is chromeless, non-activating, and floating
 
 - **WHEN** a StickyPanel is created
-- **THEN** it is configured as borderless, non-activating, and floating per parent spec D-6
+- **THEN** it is borderless, floats above application windows, and does not activate the StickySpaces app
 
-### Requirement: D-DI-1 Single NSTrackingArea for Hover and Resize Cursor
+#### Scenario: Panel stays on its creator workspace
 
-The system SHALL install one NSTrackingArea with `.mouseEnteredAndExited`, `.mouseMoved`, `.activeAlways` on StickyContentView covering the full panel bounds, using mouseMoved to set resize cursors in edge/corner hot zones, mouseEntered to fade in the dismiss button, and mouseExited to fade it out. The `.activeAlways` flag SHALL be used so tracking works when the panel is not key.
+- **WHEN** a StickyPanel is created on a specific workspace
+- **THEN** it is visible only on that workspace, not on all workspaces
 
-#### Scenario: Resize cursor appears in edge hot zone
-
-- **WHEN** the mouse moves over a 5pt edge/corner hot zone within the tracking area
-- **THEN** the cursor changes to the appropriate resize cursor (horizontal, vertical, or diagonal)
-
-#### Scenario: Cursor resets outside hot zones
-
-- **WHEN** the mouse moves away from edge/corner hot zones but remains within the panel
-- **THEN** the cursor resets to the default arrow
-
-#### Scenario: Tracking works on non-key panel
-
-- **WHEN** the panel is not key and the mouse enters the panel bounds
-- **THEN** the dismiss button fade-in and cursor changes still fire because `.activeAlways` is set
-
-### Requirement: D-DI-2 Custom Resize via Mouse Events
-
-The system SHALL implement resize through custom mouse event handling in StickyContentView — detecting mouseDown within a 5pt edge/corner hot zone, capturing the initial frame and mouse position, tracking mouseDragged to compute the new frame, clamping to minimum size, and committing to the store on mouseUp — because borderless panels have no built-in resize handles.
-
-#### Scenario: mouseDown in edge zone initiates resize
-
-- **WHEN** the user presses the mouse within a 5pt inset from any edge or corner
-- **THEN** the resize interaction begins, capturing the initial frame and mouse position
-
-#### Scenario: mouseDragged updates the frame
-
-- **WHEN** the user drags after initiating a resize
-- **THEN** the panel frame updates continuously following the mouse delta, clamped to minimum size
-
-#### Scenario: mouseUp commits the resize
-
-- **WHEN** the user releases the mouse after resizing
-- **THEN** the final size and position are committed to the store via the delegate
-
-### Requirement: D-DI-3 DragStripView Reposition via mouseDown and mouseDragged
-
-The system SHALL implement drag-strip repositioning by capturing the initial global mouse position and window origin on mouseDown, adjusting `window.setFrameOrigin()` by the delta on each mouseDragged, and committing position on mouseUp. The system SHALL NOT use `performDrag(with:)` because it triggers window-server behaviors incompatible with non-activating panels.
-
-#### Scenario: Drag strip captures initial state on mouseDown
-
-- **WHEN** the user presses the mouse within the drag strip
-- **THEN** the initial global mouse position and window origin are captured
-
-#### Scenario: Window follows mouse during drag
-
-- **WHEN** the user drags after pressing in the drag strip
-- **THEN** the window origin is adjusted by the mouse delta on each mouseDragged event
-
-#### Scenario: Position committed on mouseUp
-
-- **WHEN** the user releases the mouse after dragging
-- **THEN** the final position is committed to the store via the delegate callback
-
-### Requirement: D-DI-4 Text Change Debounce with Flush on Focus Loss
-
-The system SHALL observe NSText.didChangeNotification on StickyTextView and reset a 500ms DispatchWorkItem timer on each notification. When the timer fires, the current text SHALL be committed via the delegate. If the text view resigns first responder (textDidEndEditing), any pending timer SHALL be cancelled and the current text SHALL be flushed immediately, so that no edits are lost when the user clicks away.
-
-#### Scenario: Debounce timer resets on each keystroke
-
-- **WHEN** the user types a character while a debounce timer is pending
-- **THEN** the existing timer is cancelled and a new 500ms timer is started
-
-#### Scenario: Timer fires and commits text
-
-- **WHEN** the 500ms debounce timer fires
-- **THEN** the current text content is committed to the store via the delegate
-
-#### Scenario: Focus loss flushes pending text
-
-- **WHEN** the text view resigns first responder while a debounce timer is pending
-- **THEN** the pending timer is cancelled and the current text is flushed to the store immediately
-
-### Requirement: D-DI-5 Immediate Text Focus on Creation
-
-The system SHALL call `panel.makeKeyAndOrderFront(nil)` followed by `panel.makeFirstResponder(textView)` when a new sticky is created, so that typing starts immediately. When created with `--text`, the cursor SHALL be placed at the end of the pre-filled text. This satisfies parent spec FR-3.
-
-#### Scenario: New sticky receives text focus immediately
-
-- **WHEN** `AppKitPanelRegistry.show(sticky:)` creates a new panel
-- **THEN** the text view is the first responder and the panel is key, allowing immediate typing
-
-#### Scenario: Pre-filled text places cursor at end
-
-- **WHEN** a sticky is created with `--text "some content"`
-- **THEN** the cursor is positioned at the end of "some content" in the text view
-
-### Requirement: D-DI-6 Default collectionBehavior for Workspace Binding
-
-The system SHALL remove `.canJoinAllSpaces` and use the default (empty) collectionBehavior so that macOS automatically binds the panel to its creator Space. If validation fails with the borderless configuration, the system SHALL fall back to the ManualVisibility strategy — explicit orderFront/orderOut keyed by WorkspaceMonitor's current WorkspaceID. This satisfies parent spec D-3.
-
-#### Scenario: Panel uses default collectionBehavior
-
-- **WHEN** a StickyPanel is created
-- **THEN** its collectionBehavior is empty (default), not `.canJoinAllSpaces`
-
-#### Scenario: Fallback to ManualVisibility if default fails
-
-- **WHEN** Phase 1 revalidation determines that default collectionBehavior does not correctly bind the borderless panel to its creator Space
-- **THEN** the system falls back to ManualVisibility strategy using explicit orderFront/orderOut keyed by WorkspaceID
 

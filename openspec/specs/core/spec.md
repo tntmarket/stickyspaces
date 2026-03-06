@@ -18,6 +18,11 @@ The system SHALL allow a knowledge worker to create a floating sticky note on th
 - **WHEN** user runs `stickyspaces new --text "Fix login bug"`
 - **THEN** a sticky with that text is created and bound to the currently active workspace
 
+#### Scenario: Creation during workspace transition returns retriable error
+
+- **WHEN** user creates a sticky while a workspace switch is in progress
+- **THEN** the system returns a retriable error rather than binding to the wrong workspace
+
 ### Requirement: FR-2 Auto-show stickies on workspace switch
 
 The system SHALL display the correct stickies immediately when the user switches to a workspace, with no action required, because orientation should be a glance, not a deliberate act of recall.
@@ -147,14 +152,19 @@ The system SHALL complete sticky creation in less than 100ms from hotkey press t
 - **WHEN** 30 create operations are measured end-to-end (hotkey to visible panel)
 - **THEN** p95 latency is under 100ms
 
-### Requirement: NFR-2 Zoom animation duration 300-500ms
+### Requirement: NFR-2 Zoom animation duration 300-500ms with no flicker
 
-The system SHALL complete zoom-out and zoom-in animations within 300 to 500ms, because the animation must be fast enough to feel responsive but slow enough to maintain spatial continuity.
+The system SHALL complete zoom-out and zoom-in animations within 300 to 500ms with no blank interval exceeding 100ms, because the animation must be fast enough to feel responsive, slow enough to maintain spatial continuity, and free of visible flicker.
 
 #### Scenario: Zoom transition duration within budget
 
 - **WHEN** 30 zoom-out/zoom-in round-trips are measured
 - **THEN** p95 duration is within 300-500ms
+
+#### Scenario: No blank flicker during transition
+
+- **WHEN** a zoom-out or zoom-in transition plays
+- **THEN** there is no blank or empty interval exceeding 100ms between frames
 
 ### Requirement: NFR-3 Memory footprint under 30MB
 
@@ -172,7 +182,7 @@ The system SHALL enable a developer to add a new CLI command within 1 hour, beca
 #### Scenario: Adding a new CLI command
 
 - **WHEN** a developer needs to add a new CLI command
-- **THEN** it requires adding one `ParsableCommand` struct, one `IPCRequest` case, one handler, and one `IPCResponse` case
+- **THEN** the transport and routing layers require no changes — only the command definition and its handler need to be added
 
 ### Requirement: NFR-5 Fully CLI-operable project with no GUI tool dependency
 
@@ -249,7 +259,7 @@ The system MUST support macOS Ventura 13.0 or later, because this is the minimum
 
 ### Requirement: C-5 Single-display MVP with explicit multi-display mode
 
-The system MUST assume a single-display configuration for MVP; on multi-display setups the app MUST enter explicit Single-Display Mode bound to a latched primaryDisplayID captured at startup, filtering allSpaces() strictly by that ID and returning structured unsupported-mode errors for non-primary-display contexts, because multi-display Space management introduces orthogonal complexity.
+The system MUST assume a single-display configuration for MVP; on multi-display setups the app MUST enter Single-Display Mode bound to the primary display and return structured unsupported-mode errors for non-primary-display contexts, because multi-display Space management introduces orthogonal complexity.
 
 #### Scenario: Multi-display detected at startup
 
@@ -284,19 +294,19 @@ The system MUST fail gracefully with actionable remediation steps when system pr
 - **WHEN** the app launches and yabai is not available
 - **THEN** it provides an actionable error message with remediation steps
 
-### Requirement: C-8 Startup yabai capability probe with scoped degradation
+### Requirement: C-8 Scoped degradation when yabai capabilities are unavailable
 
-The system MUST run a yabai capability probe on startup (currentSpace, allSpaces, focusSpace, lifecycle diff fidelity) and expose capability-scoped degraded behavior rather than a single opaque degraded bucket, because external dependency drift must not silently corrupt workspace state.
-
-#### Scenario: Capability probe determines runtime mode
-
-- **WHEN** the app starts and probes yabai capabilities
-- **THEN** each capability (canReadCurrentSpace, canListSpaces, canFocusSpace, canDiffTopology) is independently assessed and runtime mode is set accordingly
+The system MUST probe yabai capabilities on startup and degrade per-capability rather than treating yabai as all-or-nothing, because partial unavailability should only affect commands that need the missing capability while the rest keep working.
 
 #### Scenario: Partial capability loss degrades specific commands
 
-- **WHEN** canFocusSpace is unavailable but canReadCurrentSpace is available
-- **THEN** navigation commands fail with structured errors while capture/orientation commands remain functional
+- **WHEN** workspace navigation is unavailable but workspace detection is available
+- **THEN** navigation commands fail with structured errors while capture and orientation commands remain functional
+
+#### Scenario: Status reports capability state
+
+- **WHEN** user runs `stickyspaces status`
+- **THEN** response includes which capabilities are available and any active warnings
 
 ### Requirement: C-9 Single-instance authority over socket and store
 
@@ -307,190 +317,28 @@ The system MUST enforce single-instance authority over the Unix socket and in-me
 - **WHEN** a second instance of StickySpaces is launched
 - **THEN** it exits with an actionable message including the PID of the running instance, without modifying socket state
 
-### Requirement: D-1 Unix domain socket for CLI-App IPC
+### Requirement: NFR-8 Workspace switch responsiveness
 
-The system MUST use a Unix domain socket at a well-known path for CLI-to-App IPC, with a shared StickySpacesClient library encapsulating socket communication and JSON encoding/decoding, because the CLI query API requires request/response semantics over a single mechanism.
+The system SHALL update visible stickies within 150ms at p95 after a workspace switch, and converge workspace topology within 1s at p95, because orientation must feel instant and the system must self-correct even when OS notifications are delayed or missed.
 
-#### Scenario: CLI communicates with app via socket
+#### Scenario: Stickies update within 150ms of workspace switch
 
-- **WHEN** the CLI sends a command
-- **THEN** it is transmitted over the Unix domain socket and a typed response is returned
+- **WHEN** the user switches workspaces
+- **THEN** the correct stickies are visible within 150ms at p95
 
-### Requirement: D-2 Dual-source workspace convergence
+#### Scenario: Rapid switching converges to correct state
 
-The system MUST use dual-source workspace convergence combining NSWorkspace.activeSpaceDidChangeNotification (fast path with 50ms debounce) and periodic 1s yabai reconciliation, with convergence SLOs of user-visible sticky visibility on active Space at p95 under 150ms and topology convergence at p95 under 1s, because notifications may be delayed, coalesced, or missed.
+- **WHEN** 100 rapid workspace switches occur
+- **THEN** the final state converges to correct sticky visibility within 1s
 
-#### Scenario: Fast path delivers low-latency updates
+### Requirement: C-10 Background agent with no Dock icon
 
-- **WHEN** macOS delivers an activeSpaceDidChange notification
-- **THEN** visible stickies update within 150ms at p95
+The system MUST run as a background agent app with no Dock icon, a stable bundle identifier, and a fixed install path, because stickies are a background utility that should not compete for Dock space or confuse macOS permission prompts with changing identities.
 
-#### Scenario: Reconciliation catches missed notifications
+#### Scenario: App does not appear in Dock
 
-- **WHEN** a workspace switch notification is missed
-- **THEN** the 1s periodic reconciliation loop detects and corrects the state within 1s at p95
-
-#### Scenario: Rapid switching converges to final state
-
-- **WHEN** 100 rapid space switches occur
-- **THEN** final state converges to correct visibility and verify-sync passes
-
-### Requirement: D-3 Default NSPanel collectionBehavior with manual fallback
-
-The system MUST use default NSPanel collectionBehavior for workspace binding as the primary strategy, with a ManualVisibility fallback (explicit show/hide keyed by WorkspaceID) if Phase 0 validation fails, because panels with default behavior stay on the macOS Space where created.
-
-#### Scenario: Panel stays on creator Space automatically
-
-- **WHEN** a sticky is created on a specific Space
-- **THEN** macOS automatically manages its visibility based on active Space without manual show/hide
-
-### Requirement: D-4 SPM with four targets
-
-The system MUST define the entire build in SPM with four targets (StickySpacesShared, StickySpacesApp, StickySpacesCLI, StickySpacesClient) using Package.swift, with StickySpacesShared owning all types that cross the IPC boundary, because this eliminates type duplication, catches schema drift at compile time, and enables text-based CLI-operable builds.
-
-#### Scenario: Build system is text-based
-
-- **WHEN** a developer needs to modify the build configuration
-- **THEN** all changes are made in Package.swift without requiring Xcode project files
-
-### Requirement: D-5 Viewport animation with explicit transition modes
-
-The system MUST implement viewport animation with two startup-selected modes (continuousBridge and discreteFallback), where both modes satisfy FR-7/FR-8 and transition intent, with parity gates for fallback including no blank interval over 100ms, spatial anchor continuity, and 300-500ms p95 duration, because smooth panel-to-canvas transitions require deterministic coordinate alignment.
-
-#### Scenario: Zoom-out transition is frame-perfect
-
-- **WHEN** user triggers zoom-out
-- **THEN** the viewport animates from current workspace panel positions to full canvas view with no visible discontinuity
-
-#### Scenario: Fallback mode meets parity gates
-
-- **WHEN** discreteFallback mode is selected
-- **THEN** transitions have no blank interval over 100ms, maintain spatial anchor continuity, and complete within 300-500ms at p95
-
-### Requirement: D-6 StickyPanel focus behavior and z-order contract
-
-The system MUST configure StickyPanel with borderless nonactivatingPanel style, floating level, and becomesKeyOnlyIfNeeded, ensuring panels float above app windows without activating StickySpaces, and become key only for text editing, because capture UX requires immediate typing without app activation.
-
-#### Scenario: New sticky receives keystrokes without app activation
-
-- **WHEN** a new sticky is created via hotkey
-- **THEN** the sticky receives keyboard input while the frontmost application remains unchanged
-
-#### Scenario: Panel z-order is correct
-
-- **WHEN** a sticky panel is displayed
-- **THEN** it appears above application windows and below system UI elements
-
-### Requirement: D-7 Swift Concurrency for all I/O
-
-The system MUST use Swift Concurrency (async/await) for all I/O including yabai shell-outs, Unix socket I/O, and workspace change handling, with StickyStore as an actor and UI components annotated @MainActor, because this eliminates data races and avoids blocking the main thread on shell-outs.
-
-#### Scenario: Yabai shell-out does not block main thread
-
-- **WHEN** a yabai query is executed
-- **THEN** the main thread remains responsive and UI updates are not delayed
-
-### Requirement: D-8 swift-argument-parser for CLI
-
-The system MUST use Apple's swift-argument-parser for the CLI target with each command as a ParsableCommand struct, because declarative argument definitions with auto-generated help and input validation enable adding new commands within 1 hour.
-
-#### Scenario: CLI provides auto-generated help
-
-- **WHEN** user runs `stickyspaces --help`
-- **THEN** all available commands and their options are listed with descriptions
-
-### Requirement: D-9 Screen coordinate convention
-
-The system MUST use the macOS screen coordinate system (origin at bottom-left of primary display, y-up) for all positions in StickyNote, CanvasLayout, and IPC types, with the canvas coordinate flip happening only at the rendering boundary, and the panel-to-canvas transform tested with a less-than-1pt error invariant, because coordinate system mismatches are a common source of subtle geometry bugs.
-
-#### Scenario: Panel-to-canvas coordinate alignment
-
-- **WHEN** panel positions are transformed to canvas coordinates
-- **THEN** the computed canvas points match expected positions within 1pt tolerance
-
-### Requirement: D-10 Single lifecycle authority for topology changes
-
-The system MUST designate WorkspaceTopologyReconciler as the single component allowed to add or remove workspace entries and trigger sticky deletion for destroyed Spaces, with CanvasWindowController and other UI components consuming reconciled snapshots but never mutating topology directly, because this prevents duplicate deletion logic and inconsistent side effects.
-
-#### Scenario: Only reconciler mutates topology
-
-- **WHEN** a workspace is destroyed
-- **THEN** only WorkspaceTopologyReconciler removes workspace entries and triggers sticky deletion
-
-#### Scenario: UI components consume snapshots
-
-- **WHEN** CanvasWindowController needs topology data
-- **THEN** it reads reconciled snapshots without performing any add/remove operations
-
-### Requirement: D-11 Conservative topology deletion with quarantine
-
-The system MUST implement two-phase workspace removal (suspectedRemoved then confirmedRemoved), with stickies moved to an in-memory quarantine for 60s on confirmation, auto-restored if workspace reappears, and purged only after quarantine expires, because this prevents false-positive destructive deletes under transient yabai inconsistency.
-
-#### Scenario: Two-phase deletion prevents premature loss
-
-- **WHEN** a workspace disappears from a single topology snapshot
-- **THEN** stickies are marked suspectedRemoved but not deleted
-
-#### Scenario: Quarantine allows recovery
-
-- **WHEN** stickies are quarantined and the workspace reappears within 60s
-- **THEN** stickies are automatically restored to user-visible surfaces
-
-#### Scenario: Quarantine expires after 60s
-
-- **WHEN** a workspace does not reappear within the 60s quarantine window
-- **THEN** stickies are permanently purged
-
-### Requirement: D-12 Deployment identity contract
-
-The system MUST maintain a stable deployment identity contract with dev-only bare `swift run` and MVP release as a bundled agent app with stable bundle identifier and install path, with Phase 0 freezing packaging path and launch identity including clean-install, restart, upgrade/reinstall, and relocation checks, because late-stage packaging and TCC rework is costly.
-
-#### Scenario: Release artifact is a bundled agent app
-
-- **WHEN** the MVP is built for release
-- **THEN** it produces a bundled agent app with no Dock icon, stable bundle ID, and stable install path
-
-### Requirement: D-13 Yabai capability matrix with scoped degradation
-
-The system MUST compute a yabai capability matrix (canReadCurrentSpace, canListSpaces, canFocusSpace, canDiffTopology) on startup and after timeout/error thresholds, gating runtime behavior per command rather than using a single opaque degraded bucket, because capability-scoped degradation prevents silent corruption from external dependency drift.
-
-#### Scenario: Timeout degrades specific capability
-
-- **WHEN** yabai currentSpace calls exceed the consecutive timeout threshold
-- **THEN** canReadCurrentSpace transitions to unavailable, create/edit/list commands fail fast with structured errors, and status surfaces warnings
-
-#### Scenario: Status reports capability state
-
-- **WHEN** user runs `stickyspaces status`
-- **THEN** response includes runtime mode, capability states, and any active warnings
-
-### Requirement: D-14 Atomic workspace binding for sticky creation
-
-The system MUST bind new stickies only when the active Space is stable under D-2 convergence (converged token not superseded), waiting up to 250ms for convergence during mid-transition, and returning a structured retriable workspaceTransitioning error rather than binding to a potentially wrong Space, because this preserves trust in workspace binding under rapid switching.
-
-#### Scenario: Create during stable state succeeds
-
-- **WHEN** user creates a sticky while the workspace state is converged
-- **THEN** the sticky is bound to the correct active workspace
-
-#### Scenario: Create during transition returns retriable error
-
-- **WHEN** user creates a sticky while a workspace switch is in progress
-- **THEN** the system waits up to 250ms for convergence, and if still transitioning, returns a structured workspaceTransitioning error
-
-### Requirement: D-15 Versioned IPC with single control-plane authority
-
-The system MUST start IPC with a protocol handshake supporting versions N and N-1, reject incompatible clients with structured protocolMismatch, and enforce single-instance authority over socket and store via lock ownership, because this prevents automation drift and control-plane takeover races.
-
-#### Scenario: Handshake validates protocol version
-
-- **WHEN** a client connects with a supported protocol version
-- **THEN** the server responds with hello including capabilities
-
-#### Scenario: Lock prevents split-brain
-
-- **WHEN** a second process attempts to acquire the instance lock
-- **THEN** it fails and exits without modifying socket state or the in-memory store
+- **WHEN** the app is running
+- **THEN** it does not appear in the macOS Dock
 
 ### Requirement: A-1 Display scope limited to primary display for MVP
 
@@ -522,7 +370,7 @@ The system MUST limit canvas navigation to sticky-click only for MVP, with regio
 
 ### Requirement: A-3 Conservative workspace deletion safety for MVP
 
-The system MUST implement conservative confirmation before hard-deleting stickies on workspace destruction, using D-11 two-phase protocol with quarantine, because transient topology inconsistencies could cause irreversible false-positive deletes.
+The system MUST implement conservative confirmation before hard-deleting stickies on workspace destruction, because transient topology inconsistencies could cause irreversible false-positive deletes.
 
 #### Scenario: Deletion requires multi-snapshot confirmation
 

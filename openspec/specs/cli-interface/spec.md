@@ -2,7 +2,7 @@
 
 CLI interface and daemon lifecycle for StickySpaces: defines the client-server IPC transport layer that routes commands from short-lived CLI processes to a long-lived daemon over a Unix socket, with lazy daemon startup, instance locking, and signal-safe cleanup.
 
-- **Parent capability**: `core` (references core D-1, C-9, NFR-1, NFR-4)
+- **Parent capability**: `core` (references core C-9, NFR-1, NFR-4)
 - **Upstream PRD**: [StickySpaces PRD](../../changes/archive/2026-02-26-mvp-foundation/proposal.md)
 
 ## Requirements
@@ -75,34 +75,6 @@ The system SHALL complete daemon startup (spawn + bind socket + ready for connec
 - **WHEN** the CLI spawns the daemon for the first time
 - **THEN** the daemon binds the socket and accepts connections within 3 seconds of the spawn
 
-### Requirement: CLI-NFR-3 New CLI command requires at most two file changes
-
-The system SHALL ensure that adding a new CLI command requires changes in at most two files (arg-to-`IPCRequest` translation + response formatting) — because the parent spec (core NFR-4) promises new commands in under 1 hour, and the transport layer must not add friction to that.
-
-#### Scenario: Adding a hypothetical new command touches minimal files
-- **WHEN** a developer adds a new CLI command (e.g., `stickyspaces archive`)
-- **THEN** the only files that need changes are the arg-to-IPCRequest translation and the response formatter — no transport layer changes are required
-
-### Requirement: CLI-NFR-4 Existing in-process test path remains unchanged
-
-The system SHALL preserve the existing `StickySpacesCLICommandRunner.run(args:app:)` test path without modification — because 10 CLI integration tests and 7 IPC integration tests depend on it, and breaking them would be a regression with no product value.
-
-#### Scenario: Existing test suites pass after transport layer is added
-- **WHEN** the socket transport layer is implemented
-- **THEN** all existing `CLIWorkflowTests` and `IPCWorkflowTests` continue to pass without any changes to test code or the `StickySpacesCLICommandRunner` interface
-
-### Requirement: CLI-C-1 IPC transport uses Unix domain socket at well-known path
-
-The system MUST use a Unix domain socket at `~/.config/stickyspaces/sock` for IPC transport — because the parent spec (core D-1) already defines this path, and `IPCServer`, `IPCWireCodec`, `IPCRequest`/`IPCResponse` are all built around newline-delimited JSON over this socket.
-
-#### Scenario: Server binds to the canonical socket path
-- **WHEN** the daemon starts
-- **THEN** it creates and binds a Unix domain socket at `~/.config/stickyspaces/sock`
-
-#### Scenario: Client connects to the canonical socket path
-- **WHEN** the CLI client needs to communicate with the daemon
-- **THEN** it connects to `~/.config/stickyspaces/sock`
-
 ### Requirement: CLI-C-2 At most one daemon process owns socket and store
 
 The system MUST ensure at most one daemon process owns the socket and store at any time — because split-brain control planes make stickies appear lost or uncontrollable (parent spec core C-9).
@@ -123,70 +95,3 @@ The system MUST clean up the socket file and lock on termination, including SIGI
 - **WHEN** the daemon receives a SIGINT signal (e.g., Ctrl+C)
 - **THEN** it unlinks the socket file and lock file before exiting
 
-### Requirement: CLI-C-4 Daemon flag is internal not user-facing
-
-The system MUST treat the `--daemon` flag as an internal mechanism, not a user-facing command — because exposing process management to users adds cognitive load that contradicts the "zero-friction capture" design goal.
-
-#### Scenario: Help output does not advertise daemon flag
-- **WHEN** a user runs `stickyspaces --help`
-- **THEN** the `--daemon` flag is not listed in the help output
-
-#### Scenario: Daemon flag is used only by DaemonLauncher
-- **WHEN** the CLI needs to start a daemon
-- **THEN** `DaemonLauncher` spawns `stickyspaces --daemon` internally, and the user never invokes it directly
-
-### Requirement: CLI-D-1 Lazy daemon start rather than explicit serve command
-
-The system MUST start the daemon lazily on first CLI use rather than requiring an explicit `serve` command — because this eliminates a manual setup step and preserves the Keyboard Maestro hotkey contract (press hotkey, sticky appears, no prerequisites). Satisfies CLI-FR-2.
-
-#### Scenario: CLI probes socket and spawns daemon if absent
-- **WHEN** a CLI invocation attempts to connect and no daemon socket exists
-- **THEN** the CLI spawns `stickyspaces --daemon` as a detached background process and polls the socket at 50ms intervals until ready (up to 3 seconds)
-
-#### Scenario: CLI skips spawn when daemon is already running
-- **WHEN** a CLI invocation attempts to connect and the daemon socket is already connectable
-- **THEN** the CLI proceeds directly to send the command without spawning a new daemon
-
-### Requirement: CLI-D-2 Daemon is background instance of same binary
-
-The system MUST run the daemon as a background instance of the same `stickyspaces` binary (via a `--daemon` flag) rather than a separate daemon binary — because reusing the same executable simplifies the build and means `DaemonLauncher` can resolve the executable path from `ProcessInfo`. Satisfies CLI-FR-2 and CLI-NFR-3.
-
-#### Scenario: DaemonLauncher resolves executable path from ProcessInfo
-- **WHEN** the CLI needs to spawn the daemon
-- **THEN** it resolves the current executable path via `ProcessInfo.processInfo.arguments[0]` and spawns it with the `--daemon` flag appended
-
-### Requirement: CLI-D-3 UnixSocketServer is thin transport adapter over IPCServer
-
-The system MUST implement `UnixSocketServer` as a thin transport adapter that delegates all command handling to the existing `IPCServer.handleLine()` — because all command routing is already implemented in `IPCServer`, and this means adding a new command requires zero changes to the transport layer. Satisfies CLI-NFR-3.
-
-#### Scenario: Socket server delegates lines to IPCServer
-- **WHEN** the `UnixSocketServer` reads a newline-delimited JSON line from a client connection
-- **THEN** it passes the line to `IPCServer.handleLine()` and writes the response back to the client
-
-#### Scenario: New command requires no transport changes
-- **WHEN** a new command is added to `IPCServer`
-- **THEN** `UnixSocketServer` routes it automatically without any modifications to the socket layer
-
-### Requirement: CLI-D-4 File-based instance lock prevents double daemon
-
-The system MUST use a POSIX `flock()` file lock on `~/.config/stickyspaces/instance.lock` to prevent multiple daemon instances — because `flock()` is automatically released on process exit (including crashes and SIGKILL), so a stale lock file cannot permanently block daemon startup. Combined with stale-socket cleanup in `DaemonLauncher`, this handles all daemon lifecycle edge cases. Satisfies CLI-C-2 and CLI-C-3.
-
-#### Scenario: Stale socket without lock is cleaned up
-- **WHEN** a CLI invocation finds a socket file on disk but no `flock()` is held on the instance lock
-- **THEN** `DaemonLauncher` unlinks the stale socket and spawns a fresh daemon
-
-#### Scenario: Lock held prevents second daemon
-- **WHEN** a second process attempts to acquire `flock()` on `instance.lock` while the first daemon holds it
-- **THEN** the second process fails to acquire the lock and exits with an "already running" message
-
-### Requirement: CLI-D-5 Preserve in-process DemoApp test path
-
-The system MUST keep the `StickySpacesCLICommandRunner.run(args:app:)` in-process test path unchanged alongside the new `CLIClientRunner` socket-based path — because tests that exercise command semantics continue to use the fast in-process path, and only transport-level tests use actual sockets. Satisfies CLI-NFR-4.
-
-#### Scenario: In-process tests remain functional
-- **WHEN** the socket transport layer is added
-- **THEN** `StickySpacesCLICommandRunner.run(args:app:)` continues to work identically, and all 10 CLI integration tests and 7 IPC integration tests pass without modification
-
-#### Scenario: Two parallel execution paths coexist
-- **WHEN** the system is fully implemented
-- **THEN** `CLIClientRunner` handles real CLI usage via sockets, while `StickySpacesCLICommandRunner` handles in-process test execution — both paths coexist without interference

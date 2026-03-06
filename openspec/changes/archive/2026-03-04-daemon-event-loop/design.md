@@ -4,7 +4,7 @@
 **Date**: 2026-03-04
 **Quality Score**: 91/100
 **Parent Design**: [CLI Interface Design](../2026-03-04-cli-interface/design.md) — FR-4 (real NSPanel windows), NFR-1 (<200ms round-trip)
-**Spec**: [spec.md](../../../specs/daemon-event-loop/spec.md)
+**Spec**: [cli-interface/spec.md](../../../specs/cli-interface/spec.md) (merged into cli-interface)
 
 ## Overview
 

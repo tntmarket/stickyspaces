@@ -1,6 +1,6 @@
 ## Purpose
 
-CLI interface and daemon lifecycle for StickySpaces: defines the client-server IPC transport layer that routes commands from short-lived CLI processes to a long-lived daemon over a Unix socket, with lazy daemon startup, instance locking, and signal-safe cleanup.
+CLI interface and daemon lifecycle for StickySpaces: defines the client-server transport that routes commands from short-lived CLI processes to a long-lived daemon, with lazy daemon startup, instance locking, signal-safe cleanup, and concurrent UI + IPC responsiveness.
 
 - **Parent capability**: `core` (references core C-9, NFR-1, NFR-4)
 - **Upstream PRD**: [StickySpaces PRD](../../changes/archive/2026-02-26-mvp-foundation/proposal.md)
@@ -67,6 +67,10 @@ The system SHALL complete a CLI command round-trip (client connect + send + rece
 - **WHEN** 100 sequential CLI commands are sent to a running daemon
 - **THEN** at least 95 of them complete the full round-trip in under 200ms
 
+#### Scenario: Concurrent commands are processed without hanging
+- **WHEN** multiple CLI commands are issued in quick succession
+- **THEN** each command receives a response within the round-trip budget
+
 ### Requirement: CLI-NFR-2 Daemon startup completes under 3 seconds
 
 The system SHALL complete daemon startup (spawn + bind socket + ready for connections) in under 3 seconds — because this is the one-time cost on first use, and anything longer than a few seconds feels broken after pressing a hotkey.
@@ -94,4 +98,24 @@ The system MUST clean up the socket file and lock on termination, including SIGI
 #### Scenario: SIGINT causes socket file removal
 - **WHEN** the daemon receives a SIGINT signal (e.g., Ctrl+C)
 - **THEN** it unlinks the socket file and lock file before exiting
+
+### Requirement: CLI-FR-7 Panels remain responsive during IPC
+
+The system SHALL keep sticky panels responsive to user interaction (drag, resize, type, dismiss) while the daemon is simultaneously serving IPC commands, because panels that appear but ignore input are worse than no panels — the user sees the note but cannot act on it.
+
+#### Scenario: Panel drag while IPC command is in flight
+- **WHEN** a user drags a sticky panel while a CLI command is being processed
+- **THEN** the panel follows the cursor without freezing or dropping frames
+
+#### Scenario: Panel dismiss while daemon is idle
+- **WHEN** a user dismisses a sticky panel via its close button
+- **THEN** the panel closes immediately without waiting for any IPC activity
+
+### Requirement: CLI-NFR-3 Near-zero CPU usage when daemon is idle
+
+The system SHALL consume near-zero CPU when idle (no user interaction, no IPC in flight), because the daemon is a long-running background process for the entire work session and gratuitous wake-ups drain laptop battery.
+
+#### Scenario: Daemon idle for extended period
+- **WHEN** the daemon has no pending IPC commands and no user interaction for 60 seconds
+- **THEN** the process shows near-zero CPU usage with no periodic wake-ups
 

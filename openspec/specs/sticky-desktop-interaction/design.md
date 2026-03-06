@@ -3,12 +3,9 @@
 **Version**: 1.0
 **Date**: 2026-03-04
 **Quality Score**: 90/100
-**Parent Spec**: [StickySpaces Tech Spec](stickyspaces-tech-spec.md) (D-3, D-6, C-1, FR-3, FR-4, FR-6)
-**PRD Reference**: [StickySpaces PRD](stickyspaces-prd.md) (Story 1, Story 2, Story 5)
-
----
-
-> **Note:** Canonical requirements have moved to [`openspec/specs/sticky-desktop-interaction/spec.md`](../openspec/specs/sticky-desktop-interaction/spec.md). This document is retained as architectural reference for design decisions, rationale, and implementation guidance.
+**Parent Design**: [StickySpaces Design](../core/design.md) (D-3, D-6, C-1, FR-3, FR-4, FR-6)
+**PRD Reference**: [StickySpaces PRD](../core/proposal.md) (Story 1, Story 2, Story 5)
+**Spec**: [spec.md](spec.md)
 
 ## Overview
 

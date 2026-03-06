@@ -3,11 +3,8 @@
 **Version**: 1.0  
 **Date**: 2026-03-02  
 **Quality Score**: 93/100  
-**PRD Reference**: [StickySpaces PRD](stickyspaces-prd.md) - Story 3 ("Zoom Out - Show Me the Big Picture")
-
----
-
-> **Note:** Canonical requirements have moved to [`openspec/specs/map-overview-zoom-out/spec.md`](../openspec/specs/map-overview-zoom-out/spec.md). This document is retained as architectural reference for design decisions, rationale, and implementation guidance.
+**PRD Reference**: [StickySpaces PRD](../core/proposal.md) - Story 3 ("Zoom Out - Show Me the Big Picture")
+**Spec**: [spec.md](spec.md)
 
 ## Overview
 
@@ -44,11 +41,11 @@ This spec intentionally excludes Story 4 navigation semantics as delivery scope,
 
 Figure 1 is the labeled Map Overview final-state mock for Story 3 (what users should actually see).
 
-![Story 3 labeled Map Overview final state](map-overview-03-last-frame-after-zoom.svg)
+![Story 3 labeled Map Overview final state](assets/map-overview-03-last-frame-after-zoom.svg)
 
 Figure 2 is the first-frame transition contract used to verify no visual jump before zoom motion starts.
 
-![Story 3 first-frame transition contract](map-overview-02-first-frame-before-zoom.svg)
+![Story 3 first-frame transition contract](assets/map-overview-02-first-frame-before-zoom.svg)
 
 - **ZO-FR-1**: A knowledge worker should be able to open Map Overview from the current workspace with a single hotkey/command, so they can access the big picture at the moment they need it.
 - **ZO-FR-2**: A knowledge worker should be able to perceive current-workspace stickies shrinking in place into overview context, so spatial continuity preserves confidence during context expansion.
@@ -60,14 +57,14 @@ Figure 2 is the first-frame transition contract used to verify no visual jump be
 
 #### Screen Sequence (Story 3 visual contract)
 
-- **Frame A** ([SVG](map-overview-01-on-desktop.svg)): just before zoom-out is triggered.
-  ![Sequence Frame A - on desktop](map-overview-01-on-desktop.svg)
+- **Frame A** ([SVG](assets/map-overview-01-on-desktop.svg)): just before zoom-out is triggered.
+  ![Sequence Frame A - on desktop](assets/map-overview-01-on-desktop.svg)
 
-- **Frame B** ([SVG](map-overview-02-first-frame-before-zoom.svg)): first frame of the zoom animation. The underlying product UI should be visually identical to Frame A before motion starts (annotation labels differ for readability).
-  ![Sequence Frame B - map overview first frame before zoom](map-overview-02-first-frame-before-zoom.svg)
+- **Frame B** ([SVG](assets/map-overview-02-first-frame-before-zoom.svg)): first frame of the zoom animation. The underlying product UI should be visually identical to Frame A before motion starts (annotation labels differ for readability).
+  ![Sequence Frame B - map overview first frame before zoom](assets/map-overview-02-first-frame-before-zoom.svg)
 
-- **Frame C** ([SVG](map-overview-03-last-frame-after-zoom.svg)): final frame of zoom-out, where overview cards are fully visible.
-  ![Sequence Frame C - map overview last frame after zoom](map-overview-03-last-frame-after-zoom.svg)
+- **Frame C** ([SVG](assets/map-overview-03-last-frame-after-zoom.svg)): final frame of zoom-out, where overview cards are fully visible.
+  ![Sequence Frame C - map overview last frame after zoom](assets/map-overview-03-last-frame-after-zoom.svg)
 
 Visual contract: each workspace card in Frame C should be a scaled thumbnail of the workspace's real desktop appearance at zoom time, not an abstract placeholder card.
 

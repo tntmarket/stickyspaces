@@ -3,11 +3,8 @@
 **Version**: 1.0
 **Date**: 2026-03-04
 **Quality Score**: 91/100
-**PRD Reference**: [CLI Interface Tech Spec](cli-interface-tech-spec.md) — FR-4 (real NSPanel windows), NFR-1 (<200ms round-trip)
-
----
-
-> **Note:** Canonical requirements have moved to [`openspec/specs/daemon-event-loop/spec.md`](../openspec/specs/daemon-event-loop/spec.md). This document is retained as architectural reference for design decisions, rationale, and implementation guidance.
+**Parent Design**: [CLI Interface Design](../cli-interface/design.md) — FR-4 (real NSPanel windows), NFR-1 (<200ms round-trip)
+**Spec**: [spec.md](spec.md)
 
 ## Overview
 

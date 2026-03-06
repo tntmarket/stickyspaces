@@ -18,7 +18,7 @@ The core promise: **explore freely, retreat safely, never lose your place.**
 
 ## Problem Statement
 
-**Current Situation**: See [The Side-Quest Trilemma — Problem Brief](sidequest-trilemma-problem-brief.md) for the full problem statement, user profile, and success metrics.
+**Current Situation**: See [The Side-Quest Trilemma — Problem Brief](problem-brief.md) for the full problem statement, user profile, and success metrics.
 
 **Proposed Solution**: Persistent floating sticky notes per workspace that provide instant orientation, combined with a zoom-out aggregate view that shows the big picture across all workspaces and enables spatial navigation between them.
 
@@ -290,7 +290,7 @@ The core promise: **explore freely, retreat safely, never lose your place.**
 
 ### Related Documents
 
-- [The Side-Quest Trilemma — Problem Brief](sidequest-trilemma-problem-brief.md)
+- [The Side-Quest Trilemma — Problem Brief](problem-brief.md)
 - [SpaceTree PRD](spacetree-prd.md) — alternative solution using tree-structured workspace navigation
 
 ### References

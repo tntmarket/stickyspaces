@@ -3,11 +3,8 @@
 **Version**: 1.0
 **Date**: 2026-02-26
 **Quality Score**: 96/100
-**PRD Reference**: [StickySpaces PRD](stickyspaces-prd.md)
-
----
-
-> **Note:** Canonical requirements have moved to [`openspec/specs/core/spec.md`](../openspec/specs/core/spec.md). This document is retained as architectural reference for design decisions, rationale, and implementation guidance.
+**PRD Reference**: [StickySpaces PRD](proposal.md)
+**Spec**: [spec.md](spec.md)
 
 ## Overview
 

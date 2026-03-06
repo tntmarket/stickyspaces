@@ -119,11 +119,11 @@ rg "FR-7" openspec/specs/
 
 ### Traceability Chain
 
-- **Business motivation**: `docs/sidequest-trilemma-problem-brief.md`
-- **Product intent**: `docs/stickyspaces-prd.md`
+- **Business motivation**: `openspec/specs/core/problem-brief.md`
+- **Product intent**: `openspec/specs/core/proposal.md`
 - **Requirements (source of truth)**: `openspec/specs/<capability>/spec.md`
 - **Verification**: `Tests/` (references requirement IDs in test names)
-- **Architecture reference**: `docs/*-tech-spec.md`
+- **Architecture reference**: `openspec/specs/<capability>/design.md`
 
 ### Rules
 

@@ -1,6 +1,6 @@
 ## Purpose
 
-Core specification for StickySpaces, a native macOS app that places persistent, chromeless sticky notes on each workspace so users can recover intent at a glance. Upstream: PRD at `docs/stickyspaces-prd.md`, problem brief at `docs/sidequest-trilemma-problem-brief.md`. Covers cross-cutting functional, non-functional, constraint, architectural, and scope requirements for the StickySpaces MVP.
+Core specification for StickySpaces, a native macOS app that places persistent, chromeless sticky notes on each workspace so users can recover intent at a glance. Upstream: PRD at `proposal.md`, problem brief at `problem-brief.md`. Covers cross-cutting functional, non-functional, constraint, architectural, and scope requirements for the StickySpaces MVP.
 
 ## Requirements
 

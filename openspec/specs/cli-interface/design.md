@@ -3,12 +3,9 @@
 **Version**: 1.0
 **Date**: 2026-03-04
 **Quality Score**: 92/100
-**PRD Reference**: [StickySpaces PRD](stickyspaces-prd.md)
-**Parent Spec**: [StickySpaces Tech Spec](stickyspaces-tech-spec.md)
-
----
-
-> **Note:** Canonical requirements have moved to [`openspec/specs/cli-interface/spec.md`](../openspec/specs/cli-interface/spec.md). This document is retained as architectural reference for design decisions, rationale, and implementation guidance.
+**PRD Reference**: [StickySpaces PRD](../core/proposal.md)
+**Parent Design**: [StickySpaces Design](../core/design.md)
+**Spec**: [spec.md](spec.md)
 
 ## Overview
 
@@ -18,7 +15,7 @@ This spec defines the client-server IPC layer that makes the CLI functional: a l
 
 ### Scope Boundary
 
-This spec covers the CLI transport layer only: how commands get from the terminal to the daemon and back. It does not cover the command semantics (what `new`, `edit`, `zoom-out` etc. do) — those are defined in the [parent spec](stickyspaces-tech-spec.md) and already implemented in `IPCServer`, `StickySpacesAutomationAPI`, and `StickyManager`. It also does not cover a real `YabaiAdapter` — the daemon uses `FakeYabaiQuerying` hardcoded to workspace 1 until a separate yabai integration effort.
+This spec covers the CLI transport layer only: how commands get from the terminal to the daemon and back. It does not cover the command semantics (what `new`, `edit`, `zoom-out` etc. do) — those are defined in the [parent design](../core/design.md) and already implemented in `IPCServer`, `StickySpacesAutomationAPI`, and `StickyManager`. It also does not cover a real `YabaiAdapter` — the daemon uses `FakeYabaiQuerying` hardcoded to workspace 1 until a separate yabai integration effort.
 
 ---
 

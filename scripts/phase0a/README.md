@@ -1,7 +1,7 @@
 # Phase 0A Harness Scripts
 
 These scripts scaffold the risk-spike and contract-gate workflows for
-`docs/stickyspaces-tech-spec.md` **Checkpoint A**.
+`openspec/specs/core/design.md` **Checkpoint A**.
 
 All scripts write machine-readable evidence under:
 

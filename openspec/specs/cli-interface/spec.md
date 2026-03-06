@@ -3,7 +3,7 @@
 CLI interface and daemon lifecycle for StickySpaces: defines the client-server IPC transport layer that routes commands from short-lived CLI processes to a long-lived daemon over a Unix socket, with lazy daemon startup, instance locking, and signal-safe cleanup.
 
 - **Parent capability**: `core` (references core D-1, C-9, NFR-1, NFR-4)
-- **Upstream PRD**: [StickySpaces PRD](docs/stickyspaces-prd.md)
+- **Upstream PRD**: [StickySpaces PRD](../core/proposal.md)
 
 ## Requirements
 

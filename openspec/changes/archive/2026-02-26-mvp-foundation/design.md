@@ -4,7 +4,7 @@
 **Date**: 2026-02-26
 **Quality Score**: 96/100
 **PRD Reference**: [StickySpaces PRD](proposal.md)
-**Spec**: [spec.md](spec.md)
+**Spec**: [spec.md](../../../specs/core/spec.md)
 
 ## Overview
 

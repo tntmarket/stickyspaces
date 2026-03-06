@@ -119,11 +119,11 @@ rg "FR-7" openspec/specs/
 
 ### Traceability Chain
 
-- **Business motivation**: `openspec/specs/core/problem-brief.md`
-- **Product intent**: `openspec/specs/core/proposal.md`
+- **Business motivation**: `openspec/changes/archive/2026-02-26-mvp-foundation/problem-brief.md`
+- **Product intent**: `openspec/changes/archive/2026-02-26-mvp-foundation/proposal.md`
 - **Requirements (source of truth)**: `openspec/specs/<capability>/spec.md`
 - **Verification**: `Tests/` (references requirement IDs in test names)
-- **Architecture reference**: `openspec/specs/<capability>/design.md`
+- **Architecture reference**: `openspec/changes/archive/` (design.md in each archived change)
 
 ### Rules
 

@@ -1,7 +1,7 @@
 # Phase 0A Harness Scripts
 
 These scripts scaffold the risk-spike and contract-gate workflows for
-`openspec/specs/core/design.md` **Checkpoint A**.
+`openspec/changes/archive/2026-02-26-mvp-foundation/design.md` **Checkpoint A**.
 
 All scripts write machine-readable evidence under:
 

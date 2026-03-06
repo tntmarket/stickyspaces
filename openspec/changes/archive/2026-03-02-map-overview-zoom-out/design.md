@@ -3,8 +3,8 @@
 **Version**: 1.0  
 **Date**: 2026-03-02  
 **Quality Score**: 93/100  
-**PRD Reference**: [StickySpaces PRD](../core/proposal.md) - Story 3 ("Zoom Out - Show Me the Big Picture")
-**Spec**: [spec.md](spec.md)
+**PRD Reference**: [StickySpaces PRD](../2026-02-26-mvp-foundation/proposal.md) - Story 3 ("Zoom Out - Show Me the Big Picture")
+**Spec**: [spec.md](../../../specs/map-overview-zoom-out/spec.md)
 
 ## Overview
 

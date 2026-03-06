@@ -3,9 +3,9 @@
 **Version**: 1.0
 **Date**: 2026-03-04
 **Quality Score**: 90/100
-**Parent Design**: [StickySpaces Design](../core/design.md) (D-3, D-6, C-1, FR-3, FR-4, FR-6)
-**PRD Reference**: [StickySpaces PRD](../core/proposal.md) (Story 1, Story 2, Story 5)
-**Spec**: [spec.md](spec.md)
+**Parent Design**: [StickySpaces Design](../2026-02-26-mvp-foundation/design.md) (D-3, D-6, C-1, FR-3, FR-4, FR-6)
+**PRD Reference**: [StickySpaces PRD](../2026-02-26-mvp-foundation/proposal.md) (Story 1, Story 2, Story 5)
+**Spec**: [spec.md](../../../specs/sticky-desktop-interaction/spec.md)
 
 ## Overview
 
